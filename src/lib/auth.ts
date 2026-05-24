@@ -66,10 +66,11 @@ export const authOptions: NextAuthOptions = {
       // Only do this for existing users — new users are handled by the adapter,
       // and running upsert before the User row exists causes a FK violation.
       if (account?.provider === "google" && account.access_token && user.email) {
-        const existing = await prisma.user.findUnique({
-          where: { email: user.email },
-          select: { id: true },
-        });
+        const [existing, userCount] = await Promise.all([
+          prisma.user.findUnique({ where: { email: user.email }, select: { id: true } }),
+          prisma.user.count(),
+        ]);
+        if (!existing && userCount >= 10) return false;
         if (existing?.id) {
           await prisma.account.upsert({
             where: {

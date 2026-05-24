@@ -21,11 +21,20 @@ export async function POST(req: Request) {
     }
     const { email, password, name } = parsed.data;
 
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const [existing, userCount] = await Promise.all([
+      prisma.user.findUnique({ where: { email } }),
+      prisma.user.count(),
+    ]);
     if (existing) {
       return NextResponse.json(
         { error: "An account with this email already exists." },
         { status: 409 },
+      );
+    }
+    if (userCount >= 10) {
+      return NextResponse.json(
+        { error: "This app is invite-only and has reached its user limit." },
+        { status: 403 },
       );
     }
 
