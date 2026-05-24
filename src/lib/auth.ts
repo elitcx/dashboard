@@ -63,13 +63,14 @@ export const authOptions: NextAuthOptions = {
       // Manually persist the Account row for Google so we can use the
       // access_token/refresh_token from API routes. JWT sessions + Credentials
       // provider can prevent the PrismaAdapter from saving Account on its own.
+      // Only do this for existing users — new users are handled by the adapter,
+      // and running upsert before the User row exists causes a FK violation.
       if (account?.provider === "google" && account.access_token && user.email) {
         const existing = await prisma.user.findUnique({
           where: { email: user.email },
           select: { id: true },
         });
-        const userId = existing?.id ?? user.id;
-        if (userId) {
+        if (existing?.id) {
           await prisma.account.upsert({
             where: {
               provider_providerAccountId: {
@@ -86,7 +87,7 @@ export const authOptions: NextAuthOptions = {
               id_token: account.id_token ?? undefined,
             },
             create: {
-              userId,
+              userId: existing.id,
               type: account.type,
               provider: account.provider,
               providerAccountId: account.providerAccountId,
@@ -98,7 +99,7 @@ export const authOptions: NextAuthOptions = {
               id_token: account.id_token,
             },
           });
-          user.id = userId;
+          user.id = existing.id;
         }
       }
       return true;
