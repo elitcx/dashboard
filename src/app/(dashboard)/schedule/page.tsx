@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { CalendarView } from "@/components/schedule/calendar-view";
 import { TodoPanel } from "@/components/schedule/todo-panel";
 import { ConnectGoogle } from "@/components/schedule/connect-google";
+import { DaySummaryPanel } from "@/components/schedule/day-summary-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useCalendarList,
@@ -71,6 +72,7 @@ export default function SchedulePage() {
         </div>
       ) : (
         <div className="space-y-5">
+          <DaySummaryPanel selectedCalendarIds={selected} />
           <CalendarView
             selectedCalendarIds={selected}
             calendars={calData?.calendars ?? []}
