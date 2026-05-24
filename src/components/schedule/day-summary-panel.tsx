@@ -10,14 +10,35 @@ import {
   Lightbulb,
   Flag,
   Loader2,
+  Clock,
+  MapPin,
+  Video,
+  CalendarDays,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { hexToRgba } from "@/lib/calendar-utils";
+
+type DayEventLite = {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  allDay: boolean;
+  timeLabel: string;
+  durationLabel: string;
+  durationMin: number;
+  location?: string;
+  meetingUrl?: string;
+  calendarName?: string;
+  background: string;
+};
 
 type DaySummary = {
   headline: string;
   summary: string;
+  events: DayEventLite[];
   priorities: { title: string; detail: string; level: "high" | "med" | "low" }[];
   prep: string[];
   tips: string[];
@@ -70,7 +91,9 @@ export function DaySummaryPanel({ selectedCalendarIds }: Props) {
 
   const generate = useMutation({
     mutationFn: async () => {
-      const params = new URLSearchParams({ date });
+      const tz =
+        Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const params = new URLSearchParams({ date, tz });
       if (calIdsParam !== null) params.set("calendarIds", calIdsParam);
       const res = await fetch(`/api/ai/day-summary?${params.toString()}`, {
         method: "POST",
@@ -245,6 +268,74 @@ export function DaySummaryPanel({ selectedCalendarIds }: Props) {
                   {summary.summary}
                 </p>
               </div>
+
+              {/* Explicit events list — the straight-up schedule */}
+              {summary.events && summary.events.length > 0 && (
+                <Section
+                  icon={
+                    <CalendarDays
+                      className="h-3.5 w-3.5 text-emerald-300"
+                      strokeWidth={2}
+                    />
+                  }
+                  title="Today's Schedule"
+                >
+                  <ul className="space-y-1.5">
+                    {summary.events.map((ev) => (
+                      <li
+                        key={ev.id}
+                        className="flex items-start gap-3 rounded-2xl border border-white/5 bg-white/[0.02] px-3 py-2.5"
+                      >
+                        <span
+                          className="mt-1 h-3 w-1 shrink-0 rounded-full"
+                          style={{
+                            backgroundColor: ev.background,
+                            boxShadow: `0 0 12px ${hexToRgba(ev.background, 0.5)}`,
+                          }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-baseline gap-x-2">
+                            <span className="text-sm font-medium text-white">
+                              {ev.title}
+                            </span>
+                            {ev.calendarName && (
+                              <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60">
+                                {ev.calendarName}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-muted-foreground">
+                            <span className="flex items-center gap-1 text-white/70">
+                              <Clock
+                                className="h-3 w-3"
+                                strokeWidth={2}
+                              />
+                              {ev.timeLabel}
+                              {!ev.allDay && (
+                                <span className="text-muted-foreground/60">
+                                  · {ev.durationLabel}
+                                </span>
+                              )}
+                            </span>
+                            {ev.location && (
+                              <span className="flex items-center gap-1">
+                                <MapPin className="h-3 w-3" strokeWidth={2} />
+                                <span className="truncate">{ev.location}</span>
+                              </span>
+                            )}
+                            {!ev.location && ev.meetingUrl && (
+                              <span className="flex items-center gap-1">
+                                <Video className="h-3 w-3" strokeWidth={2} />
+                                Video
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </Section>
+              )}
 
               <div className="grid gap-3 sm:grid-cols-2">
                 {/* Priorities */}
