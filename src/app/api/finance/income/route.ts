@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { weekStart, weekEnd, allocate } from "@/lib/finance-utils";
+import { weekStart, weekEnd, allocate, getUserFinanceConfig } from "@/lib/finance-utils";
 
 // GET /api/finance/income?week=YYYY-MM-DD
 //   Returns the aggregated weekly view: income entries within the week,
@@ -20,7 +20,7 @@ export async function GET(req: Request) {
   const endExclusive = new Date(end);
   endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
 
-  const [entries, expenses] = await Promise.all([
+  const [entries, expenses, config] = await Promise.all([
     prisma.incomeEntry.findMany({
       where: { userId: session.user.id, date: { gte: start, lt: endExclusive } },
       orderBy: { date: "desc" },
@@ -29,6 +29,7 @@ export async function GET(req: Request) {
       where: { userId: session.user.id, date: { gte: start, lt: endExclusive } },
       orderBy: { date: "desc" },
     }),
+    getUserFinanceConfig(session.user.id),
   ]);
 
   const totalIncome = entries.reduce((s, e) => s + e.amount, 0);
@@ -38,7 +39,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ week: null });
   }
 
-  const { locked, fund, skill, flex } = allocate(totalIncome);
+  const { locked, fund, skill, flex } = allocate(totalIncome, config);
 
   const spent = { FUND: 0, SKILL: 0, FLEX: 0 };
   for (const e of expenses) spent[e.balanceTarget] += e.amount;

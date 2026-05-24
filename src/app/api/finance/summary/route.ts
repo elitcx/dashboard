@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { allocate, weekStart } from "@/lib/finance-utils";
+import { allocate, getUserFinanceConfig } from "@/lib/finance-utils";
 
 // Returns:
 //   totals       — all-time allocated/spent/remaining per bucket + total income/spent
@@ -24,7 +24,7 @@ export async function GET(req: Request) {
     dateFilter.lt = t;
   }
 
-  const [entries, expenses] = await Promise.all([
+  const [entries, expenses, config] = await Promise.all([
     prisma.incomeEntry.findMany({
       where: { userId: session.user.id, ...(from || to ? { date: dateFilter } : {}) },
       orderBy: { date: "asc" },
@@ -33,6 +33,7 @@ export async function GET(req: Request) {
       where: { userId: session.user.id, ...(from || to ? { date: dateFilter } : {}) },
       orderBy: { date: "asc" },
     }),
+    getUserFinanceConfig(session.user.id),
   ]);
 
   // ───── Totals (all-time, or within filter window if applied) ──────
@@ -41,7 +42,7 @@ export async function GET(req: Request) {
   for (const e of expenses) totalSpentByBucket[e.balanceTarget] += e.amount;
   const totalSpent = totalSpentByBucket.FUND + totalSpentByBucket.SKILL + totalSpentByBucket.FLEX;
 
-  const allocAll = allocate(totalIncome);
+  const allocAll = allocate(totalIncome, config);
 
   const totals = {
     totalIncome,
@@ -123,7 +124,7 @@ export async function GET(req: Request) {
   }
   // Allocate income per week and compute net
   for (const row of weekMap.values()) {
-    const a = allocate(row.income);
+    const a = allocate(row.income, config);
     row.locked = a.locked;
     row.fund = a.fund;
     row.skill = a.skill;

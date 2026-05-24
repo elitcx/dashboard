@@ -13,13 +13,14 @@ import type { CalendarEvent } from "@/lib/google-calendar";
 type Props = {
   date: Date;
   events: CalendarEvent[];
+  selectedDay?: Date | null;
   onDayClick: (date: Date) => void;
   onEventClick: (event: CalendarEvent) => void;
 };
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-export function MonthView({ date, events, onDayClick, onEventClick }: Props) {
+export function MonthView({ date, events, selectedDay, onDayClick, onEventClick }: Props) {
   const grid = getMonthGrid(date);
   const today = new Date();
   const currentMonth = date.getMonth();
@@ -37,9 +38,10 @@ export function MonthView({ date, events, onDayClick, onEventClick }: Props) {
         {DAY_LABELS.map((label) => (
           <div
             key={label}
-            className="py-3.5 text-center text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70"
+            className="py-2.5 text-center text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/70 sm:py-3.5 sm:text-[11px]"
           >
-            {label}
+            <span className="sm:hidden">{label[0]}</span>
+            <span className="hidden sm:inline">{label}</span>
           </div>
         ))}
       </div>
@@ -49,39 +51,57 @@ export function MonthView({ date, events, onDayClick, onEventClick }: Props) {
         {grid.map((day, i) => {
           const inMonth = day.getMonth() === currentMonth;
           const isToday = isSameDay(day, today);
+          const isSelected = selectedDay ? isSameDay(day, selectedDay) : false;
           const dayEvents = getEventsForDay(events, day);
           const visibleEvents = dayEvents.slice(0, 4);
           const overflow = dayEvents.length - visibleEvents.length;
+          const dotEvents = dayEvents.slice(0, 4);
 
           return (
             <button
               key={i}
               onClick={() => onDayClick(day)}
               className={cn(
-                "group relative min-h-[148px] border-b border-r border-white/[0.06] p-3 text-left transition-colors hover:bg-white/[0.025]",
+                "group relative min-h-[64px] border-b border-r border-white/[0.06] p-1 text-left transition-colors hover:bg-white/[0.025] sm:min-h-[148px] sm:p-3",
                 (i + 1) % 7 === 0 && "border-r-0",
                 i >= 35 && "border-b-0",
                 !inMonth && "opacity-50",
+                isSelected && !isToday && "bg-emerald-500/[0.06] ring-1 ring-inset ring-emerald-500/30",
               )}
             >
               {/* Day number */}
-              <div className="mb-2 flex items-center justify-between">
+              <div className="mb-1 flex items-center justify-center sm:mb-2 sm:justify-between">
                 <div
                   className={cn(
-                    "flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold transition-all",
+                    "flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition-all sm:h-7 sm:w-7 sm:text-sm",
                     isToday
                       ? "bg-emerald-500 text-black shadow-[0_0_16px_rgba(16,185,129,0.45)]"
-                      : inMonth
-                        ? "text-white/80 group-hover:bg-white/[0.06]"
-                        : "text-white/30",
+                      : isSelected
+                        ? "bg-white/10 text-white ring-1 ring-emerald-500/40"
+                        : inMonth
+                          ? "text-white/80 group-hover:bg-white/[0.06]"
+                          : "text-white/30",
                   )}
                 >
                   {day.getDate()}
                 </div>
               </div>
 
-              {/* Events */}
-              <div className="space-y-1">
+              {/* Mobile: just dots */}
+              {dotEvents.length > 0 && (
+                <div className="flex items-center justify-center gap-0.5 sm:hidden">
+                  {dotEvents.map((event) => (
+                    <span
+                      key={event.id}
+                      className="h-1 w-1 rounded-full"
+                      style={{ backgroundColor: event.background }}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Desktop: full event list */}
+              <div className="hidden space-y-1 sm:block">
                 {visibleEvents.map((event) =>
                   event.allDay ? (
                     <div

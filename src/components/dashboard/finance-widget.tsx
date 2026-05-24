@@ -5,7 +5,7 @@ import { ArrowUpRight, Wallet, Lock, Wrench, Zap, Sparkles, TrendingUp, Trending
 import { GlassCard, CardLabel } from "@/components/ui/glass-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { useFinanceSummary } from "@/hooks/use-finance";
+import { useFinanceConfigOrDefaults, useFinanceSummary } from "@/hooks/use-finance";
 import { fmtRp } from "@/lib/finance-utils";
 
 type BucketProps = { Icon: typeof Lock; label: string; remaining: number; allocated: number; locked?: boolean };
@@ -21,8 +21,8 @@ function Bucket({ Icon, label, remaining, allocated, locked }: BucketProps) {
   return (
     <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-3">
       <div className="flex items-center gap-1.5">
-        <Icon className="h-3 w-3 text-emerald-400" strokeWidth={1.75} />
-        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
+        <Icon className="h-3 w-3 shrink-0 text-emerald-400" strokeWidth={1.75} />
+        <span className="truncate text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</span>
       </div>
       <div className="mt-1.5 font-mono text-xs font-medium text-white">{fmtRp(remaining)}</div>
       <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/5">
@@ -34,6 +34,7 @@ function Bucket({ Icon, label, remaining, allocated, locked }: BucketProps) {
 
 export function FinanceWidget({ delay = 0 }: { delay?: number }) {
   const { data, isLoading } = useFinanceSummary();
+  const cfg = useFinanceConfigOrDefaults();
   const totals = data?.totals;
   const history = data?.history ?? [];
   const balance = history.length > 0 ? history[history.length - 1].balance : 0;
@@ -86,10 +87,10 @@ export function FinanceWidget({ delay = 0 }: { delay?: number }) {
         </div>
       ) : totals ? (
         <div className="mt-5 grid grid-cols-2 gap-2">
-          <Bucket Icon={Lock} label="Locked" remaining={totals.locked.remaining} allocated={totals.locked.allocated} locked />
-          <Bucket Icon={Sparkles} label="Fun" remaining={totals.fund.remaining} allocated={totals.fund.allocated} />
-          <Bucket Icon={Wrench} label="Skill" remaining={totals.skill.remaining} allocated={totals.skill.allocated} />
-          <Bucket Icon={Zap} label="Flex" remaining={totals.flex.remaining} allocated={totals.flex.allocated} />
+          <Bucket Icon={Lock} label={cfg.lockedLabel} remaining={totals.locked.remaining} allocated={totals.locked.allocated} locked />
+          <Bucket Icon={Sparkles} label={cfg.fundLabel} remaining={totals.fund.remaining} allocated={totals.fund.allocated} />
+          <Bucket Icon={Wrench} label={cfg.skillLabel} remaining={totals.skill.remaining} allocated={totals.skill.allocated} />
+          <Bucket Icon={Zap} label={cfg.flexLabel} remaining={totals.flex.remaining} allocated={totals.flex.allocated} />
         </div>
       ) : (
         <div className="mt-5 flex flex-1 items-center justify-center rounded-2xl border border-dashed border-white/10 text-sm text-muted-foreground">

@@ -31,6 +31,7 @@ model User {
   incomeEntries       IncomeEntry[]
   expenses            Expense[]
   todoCompletions     TodoCompletion[]
+  financeConfig       FinanceConfig?
 }
 
 model Account {
@@ -278,4 +279,25 @@ model Expense {
 
   @@index([userId])
   @@index([userId, date])
+}
+
+// Per-user customization of the 4 finance buckets.
+// Percentages are 0–100 and should sum to 100.
+model FinanceConfig {
+  userId      String @id
+  lockedLabel String @default("Locked")
+  fundLabel   String @default("Fun")
+  skillLabel  String @default("Skill")
+  flexLabel   String @default("Flex")
+  lockedDesc  String @default("Reserved — do not spend")
+  fundDesc    String @default("Fun activities & extras")
+  skillDesc   String @default("Learning & self-improvement")
+  flexDesc    String @default("Day-to-day spending")
+  lockedPct   Float  @default(10)
+  fundPct     Float  @default(22.5)
+  skillPct    Float  @default(58.5)
+  flexPct     Float  @default(9)
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

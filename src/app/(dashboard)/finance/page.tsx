@@ -2,9 +2,9 @@
 
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useWeekView, useFinanceSummary } from "@/hooks/use-finance";
+import { useFinanceConfigOrDefaults, useWeekView, useFinanceSummary } from "@/hooks/use-finance";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IncomeForm } from "@/components/finance/income-form";
 import { BalanceCards } from "@/components/finance/balance-cards";
@@ -14,6 +14,7 @@ import { AdvicePanel } from "@/components/finance/advice-panel";
 import { TotalBalanceChart } from "@/components/finance/total-balance-chart";
 import { TotalBalanceCards } from "@/components/finance/total-balance-cards";
 import { WeeklyLogTable } from "@/components/finance/weekly-log-table";
+import { AllocationSettings } from "@/components/finance/allocation-settings";
 
 function mondayOf(date: Date) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -45,6 +46,7 @@ const TABS: { id: Tab; label: string }[] = [
 export default function FinancePage() {
   const [tab, setTab] = useState<Tab>("weekly");
   const [weekOffset, setWeekOffset] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const baseMonday = mondayOf(new Date());
   const currentMonday = addWeeks(baseMonday, weekOffset);
   const weekStr = currentMonday.toISOString().slice(0, 10);
@@ -54,6 +56,7 @@ export default function FinancePage() {
   const isCurrentWeek = weekOffset === 0;
 
   const { data: summary } = useFinanceSummary();
+  const cfg = useFinanceConfigOrDefaults();
 
   return (
     <>
@@ -61,13 +64,24 @@ export default function FinancePage() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-        className="mb-8"
+        className="mb-8 flex flex-wrap items-end justify-between gap-3"
       >
-        <h1 className="text-4xl font-medium tracking-tight text-white sm:text-5xl">Finance</h1>
-        <p className="mt-2 text-base text-muted-foreground">
-          Weekly income engine — Locked · Fun · Skill · Flex
-        </p>
+        <div className="min-w-0">
+          <h1 className="text-4xl font-medium tracking-tight text-white sm:text-5xl">Finance</h1>
+          <p className="mt-2 truncate text-base text-muted-foreground">
+            Weekly income engine — {cfg.lockedLabel} · {cfg.fundLabel} · {cfg.skillLabel} · {cfg.flexLabel}
+          </p>
+        </div>
+        <button
+          onClick={() => setSettingsOpen(true)}
+          className="glass inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium text-muted-foreground transition-colors hover:text-white"
+        >
+          <Settings2 className="h-3.5 w-3.5" />
+          <span>Allocations</span>
+        </button>
       </motion.div>
+
+      <AllocationSettings open={settingsOpen} onOpenChange={setSettingsOpen} />
 
       {/* Always-visible top: total balance chart + all-time bucket cards */}
       <div className="mb-6 space-y-4">
@@ -76,14 +90,14 @@ export default function FinancePage() {
       </div>
 
       {/* Tabs */}
-      <div className="mb-6 flex w-full overflow-x-auto">
+      <div className="mb-6 -mx-4 flex w-[calc(100%+2rem)] overflow-x-auto px-4 sm:mx-0 sm:w-full sm:px-0">
         <div className="glass inline-flex rounded-full p-1">
           {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               className={cn(
-                "rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors",
+                "rounded-full px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors sm:px-4 sm:py-2 sm:text-sm",
                 tab === t.id
                   ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30"
                   : "text-muted-foreground hover:text-white",

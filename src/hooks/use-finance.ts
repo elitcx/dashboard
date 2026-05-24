@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { DEFAULT_FINANCE_CONFIG, type FinanceConfigShape } from "@/lib/finance-utils";
 
 export type Expense = {
   id: string;
@@ -143,6 +144,45 @@ export function useDeleteExpense() {
     mutationFn: (id: string) =>
       fetch(`/api/finance/expenses/${id}`, { method: "DELETE" }).then((r) => r.json()),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["finance-week"] });
+      qc.invalidateQueries({ queryKey: ["finance-summary"] });
+    },
+  });
+}
+
+// ── Finance config (per-user labels + percentages) ────────────────────
+
+export function useFinanceConfig() {
+  return useQuery<{ config: FinanceConfigShape }>({
+    queryKey: ["finance-config"],
+    queryFn: () => fetch("/api/finance/config").then((r) => r.json()),
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+/** Returns the user's config or the defaults — never null. Safe to call anywhere. */
+export function useFinanceConfigOrDefaults(): FinanceConfigShape {
+  const { data } = useFinanceConfig();
+  return data?.config ?? DEFAULT_FINANCE_CONFIG;
+}
+
+export function useSaveFinanceConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (config: FinanceConfigShape) => {
+      const res = await fetch("/api/finance/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(config),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(typeof err.error === "string" ? err.error : "Failed to save config");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["finance-config"] });
       qc.invalidateQueries({ queryKey: ["finance-week"] });
       qc.invalidateQueries({ queryKey: ["finance-summary"] });
     },

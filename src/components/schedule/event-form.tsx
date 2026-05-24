@@ -9,7 +9,6 @@ import { DateTimePicker } from "@/components/ui/date-time-picker";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -631,32 +630,32 @@ export function EventForm({
             </div>
           )}
 
-          <DialogFooter className="!mt-6 items-center justify-between sm:!justify-between">
+          <div className="!mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
             {event && !isReadOnly ? (
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 onClick={onDelete}
-                className="!justify-start text-red-300/80 hover:text-red-300"
+                className="self-start text-red-300/80 hover:text-red-300"
               >
                 <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                 Delete
               </Button>
             ) : (
-              <div />
+              <div className="hidden sm:block" />
             )}
-            <div className="flex gap-2">
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            <div className="flex gap-2 sm:ml-auto">
+              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="flex-1 sm:flex-initial">
                 {isReadOnly ? "Close" : "Cancel"}
               </Button>
               {!isReadOnly && (
-                <Button type="submit" disabled={isPending}>
+                <Button type="submit" disabled={isPending} className="flex-1 sm:flex-initial">
                   {isPending ? "Saving…" : event ? "Save" : "Create"}
                 </Button>
               )}
             </div>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

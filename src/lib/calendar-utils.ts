@@ -1,6 +1,6 @@
 import type { CalendarEvent } from "./google-calendar";
 
-export type ViewMode = "month" | "week" | "day";
+export type ViewMode = "month" | "week" | "day" | "agenda";
 
 export function startOfDay(d: Date): Date {
   const x = new Date(d);

@@ -2,7 +2,7 @@
 
 import { Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useDeleteExpense, type Expense } from "@/hooks/use-finance";
+import { useDeleteExpense, useFinanceConfigOrDefaults, type Expense } from "@/hooks/use-finance";
 import { fmtRp } from "@/lib/finance-utils";
 
 const TARGET_STYLES = {
@@ -11,10 +11,14 @@ const TARGET_STYLES = {
   FLEX: "bg-amber-500/10 text-amber-300 ring-amber-500/20",
 };
 
-const TARGET_LABEL = { FUND: "Fun", SKILL: "Skill", FLEX: "Flex" };
-
 export function ExpenseList({ expenses }: { expenses: Expense[] }) {
   const del = useDeleteExpense();
+  const cfg = useFinanceConfigOrDefaults();
+  const TARGET_LABEL: Record<"FUND" | "SKILL" | "FLEX", string> = {
+    FUND: cfg.fundLabel,
+    SKILL: cfg.skillLabel,
+    FLEX: cfg.flexLabel,
+  };
 
   if (expenses.length === 0) {
     return (

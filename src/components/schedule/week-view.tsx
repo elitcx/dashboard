@@ -92,6 +92,8 @@ export function WeekView({ date, events, onSlotClick, onEventClick }: Props) {
       transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
       className="glass overflow-hidden rounded-3xl"
     >
+      <div className="overflow-x-auto">
+        <div className="min-w-[720px]">
       {/* Day headers */}
       <div className="grid grid-cols-[64px_repeat(7,1fr)] border-b border-white/5">
         <div />
@@ -320,6 +322,8 @@ export function WeekView({ date, events, onSlotClick, onEventClick }: Props) {
             </div>
           );
         })}
+      </div>
+        </div>
       </div>
     </motion.div>
   );

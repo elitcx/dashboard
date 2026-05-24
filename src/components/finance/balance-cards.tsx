@@ -3,13 +3,13 @@
 import { motion } from "framer-motion";
 import { Lock, Sparkles, Wrench, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { WeekView } from "@/hooks/use-finance";
+import { useFinanceConfigOrDefaults, type WeekView } from "@/hooks/use-finance";
 import { fmtRp } from "@/lib/finance-utils";
 
 type BucketDef = {
   key: keyof WeekView["remaining"];
   spentKey?: keyof WeekView["spent"];
-  label: string;
+  labelKey: "lockedLabel" | "fundLabel" | "skillLabel" | "flexLabel";
   Icon: typeof Lock;
   color: string;
   ring: string;
@@ -20,7 +20,7 @@ type BucketDef = {
 const BUCKETS: BucketDef[] = [
   {
     key: "locked",
-    label: "Locked",
+    labelKey: "lockedLabel",
     Icon: Lock,
     color: "text-slate-300",
     ring: "ring-slate-500/20",
@@ -30,7 +30,7 @@ const BUCKETS: BucketDef[] = [
   {
     key: "fund",
     spentKey: "FUND",
-    label: "Fun",
+    labelKey: "fundLabel",
     Icon: Sparkles,
     color: "text-emerald-400",
     ring: "ring-emerald-500/20",
@@ -39,7 +39,7 @@ const BUCKETS: BucketDef[] = [
   {
     key: "skill",
     spentKey: "SKILL",
-    label: "Skill",
+    labelKey: "skillLabel",
     Icon: Wrench,
     color: "text-blue-400",
     ring: "ring-blue-500/20",
@@ -48,7 +48,7 @@ const BUCKETS: BucketDef[] = [
   {
     key: "flex",
     spentKey: "FLEX",
-    label: "Flex",
+    labelKey: "flexLabel",
     Icon: Zap,
     color: "text-amber-400",
     ring: "ring-amber-500/20",
@@ -56,7 +56,7 @@ const BUCKETS: BucketDef[] = [
   },
 ];
 
-function BucketCard({ bucket, income }: { bucket: BucketDef; income: WeekView }) {
+function BucketCard({ bucket, income, label, lockedHint }: { bucket: BucketDef; income: WeekView; label: string; lockedHint?: string }) {
   const allocated = bucket.locked ? income.locked : income[bucket.key as keyof typeof income] as number;
   const remaining = income.remaining[bucket.key];
   const spent = bucket.spentKey ? income.spent[bucket.spentKey] : 0;
@@ -73,10 +73,10 @@ function BucketCard({ bucket, income }: { bucket: BucketDef; income: WeekView })
   return (
     <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-5">
       <div className="mb-4 flex items-center gap-2">
-        <div className={`flex h-8 w-8 items-center justify-center rounded-xl bg-white/5 ring-1 ${bucket.ring}`}>
+        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/5 ring-1 ${bucket.ring}`}>
           <Icon className={`h-4 w-4 ${bucket.color}`} strokeWidth={1.75} />
         </div>
-        <span className="text-sm font-medium text-white">{bucket.label}</span>
+        <span className="truncate text-sm font-medium text-white">{label}</span>
       </div>
 
       <div className="mb-1 flex items-baseline justify-between">
@@ -89,8 +89,8 @@ function BucketCard({ bucket, income }: { bucket: BucketDef; income: WeekView })
           {fmtRp(spent)} spent
         </p>
       )}
-      {bucket.locked && (
-        <p className="mb-3 text-xs text-muted-foreground">Reserved — do not spend</p>
+      {bucket.locked && lockedHint && (
+        <p className="mb-3 text-xs text-muted-foreground">{lockedHint}</p>
       )}
 
       <div className="h-1.5 overflow-hidden rounded-full bg-white/5">
@@ -107,6 +107,7 @@ function BucketCard({ bucket, income }: { bucket: BucketDef; income: WeekView })
 }
 
 export function BalanceCards({ income }: { income: WeekView }) {
+  const cfg = useFinanceConfigOrDefaults();
   const totalSpent = income.spent.FUND + income.spent.SKILL + income.spent.FLEX;
   const efficiency = income.amount > 0
     ? ((income.amount - totalSpent) / income.amount) * 100
@@ -116,7 +117,13 @@ export function BalanceCards({ income }: { income: WeekView }) {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {BUCKETS.map((b) => (
-          <BucketCard key={b.key} bucket={b} income={income} />
+          <BucketCard
+            key={b.key}
+            bucket={b}
+            income={income}
+            label={cfg[b.labelKey]}
+            lockedHint={b.locked ? cfg.lockedDesc : undefined}
+          />
         ))}
       </div>
 

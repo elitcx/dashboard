@@ -3,12 +3,12 @@
 import { motion } from "framer-motion";
 import { Lock, Sparkles, Wrench, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { FinanceTotals } from "@/hooks/use-finance";
+import { useFinanceConfigOrDefaults, type FinanceTotals } from "@/hooks/use-finance";
 import { fmtRp } from "@/lib/finance-utils";
 
 type BucketDef = {
   key: "locked" | "fund" | "skill" | "flex";
-  label: string;
+  labelKey: "lockedLabel" | "fundLabel" | "skillLabel" | "flexLabel";
   Icon: typeof Lock;
   color: string;
   ring: string;
@@ -16,13 +16,14 @@ type BucketDef = {
 };
 
 const BUCKETS: BucketDef[] = [
-  { key: "locked", label: "Locked", Icon: Lock, color: "text-slate-300", ring: "ring-slate-500/20", locked: true },
-  { key: "fund", label: "Fun", Icon: Sparkles, color: "text-emerald-400", ring: "ring-emerald-500/20" },
-  { key: "skill", label: "Skill", Icon: Wrench, color: "text-blue-400", ring: "ring-blue-500/20" },
-  { key: "flex", label: "Flex", Icon: Zap, color: "text-amber-400", ring: "ring-amber-500/20" },
+  { key: "locked", labelKey: "lockedLabel", Icon: Lock, color: "text-slate-300", ring: "ring-slate-500/20", locked: true },
+  { key: "fund", labelKey: "fundLabel", Icon: Sparkles, color: "text-emerald-400", ring: "ring-emerald-500/20" },
+  { key: "skill", labelKey: "skillLabel", Icon: Wrench, color: "text-blue-400", ring: "ring-blue-500/20" },
+  { key: "flex", labelKey: "flexLabel", Icon: Zap, color: "text-amber-400", ring: "ring-amber-500/20" },
 ];
 
 export function TotalBalanceCards({ totals }: { totals: FinanceTotals }) {
+  const cfg = useFinanceConfigOrDefaults();
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -38,10 +39,10 @@ export function TotalBalanceCards({ totals }: { totals: FinanceTotals }) {
         return (
           <div key={b.key} className="rounded-2xl border border-white/5 bg-white/[0.02] p-4">
             <div className="mb-2.5 flex items-center gap-2">
-              <div className={cn("flex h-7 w-7 items-center justify-center rounded-lg bg-white/5 ring-1", b.ring)}>
+              <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/5 ring-1", b.ring)}>
                 <b.Icon className={cn("h-3.5 w-3.5", b.color)} strokeWidth={1.75} />
               </div>
-              <span className="text-xs font-medium text-white">{b.label}</span>
+              <span className="truncate text-xs font-medium text-white">{cfg[b.labelKey]}</span>
             </div>
             <p className="font-mono text-base font-medium text-white">{fmtRp(bucket.remaining)}</p>
             <p className="mt-0.5 text-[10px] text-muted-foreground">

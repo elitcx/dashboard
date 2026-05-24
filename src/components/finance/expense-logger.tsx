@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
-import { useAddExpense } from "@/hooks/use-finance";
+import { useAddExpense, useFinanceConfigOrDefaults } from "@/hooks/use-finance";
 
 const CATEGORIES = [
   "Food & Drink",
@@ -22,12 +22,13 @@ const CATEGORIES = [
 ];
 
 const TARGETS = [
-  { value: "FUND" as const, label: "Fun", desc: "Fun activities & extras" },
-  { value: "SKILL" as const, label: "Skill", desc: "Learning & self-improvement" },
-  { value: "FLEX" as const, label: "Flex", desc: "Day-to-day spending" },
+  { value: "FUND" as const, labelKey: "fundLabel" as const, descKey: "fundDesc" as const },
+  { value: "SKILL" as const, labelKey: "skillLabel" as const, descKey: "skillDesc" as const },
+  { value: "FLEX" as const, labelKey: "flexLabel" as const, descKey: "flexDesc" as const },
 ];
 
 export function ExpenseLogger() {
+  const cfg = useFinanceConfigOrDefaults();
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("Food & Drink");
   const [customCategory, setCustomCategory] = useState("");
@@ -156,8 +157,10 @@ export function ExpenseLogger() {
                   : "border-white/10 bg-white/[0.02] text-muted-foreground hover:border-white/20 hover:text-white"
               }`}
             >
-              <div className="text-sm font-medium">{t.label}</div>
-              <div className="mt-0.5 text-[10px] leading-tight opacity-70">{t.desc}</div>
+              <div className="truncate text-sm font-medium">{cfg[t.labelKey]}</div>
+              {cfg[t.descKey] && (
+                <div className="mt-0.5 line-clamp-2 text-[10px] leading-tight opacity-70">{cfg[t.descKey]}</div>
+              )}
             </button>
           ))}
         </div>

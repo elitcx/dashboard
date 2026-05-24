@@ -5,7 +5,7 @@ import { Table } from "lucide-react";
 import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
-import { useFinanceSummary } from "@/hooks/use-finance";
+import { useFinanceConfigOrDefaults, useFinanceSummary } from "@/hooks/use-finance";
 import { fmtRp } from "@/lib/finance-utils";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +16,7 @@ function fmtWeekRange(start: string, end: string) {
 }
 
 export function WeeklyLogTable() {
+  const cfg = useFinanceConfigOrDefaults();
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const { data, isLoading } = useFinanceSummary({
@@ -92,11 +93,11 @@ export function WeeklyLogTable() {
               <tr className="border-b border-white/5 bg-white/[0.02] text-[10px] uppercase tracking-wider text-muted-foreground">
                 <th className="px-3 py-2.5 font-medium">Week</th>
                 <th className="px-3 py-2.5 text-right font-medium">Income</th>
-                <th className="px-3 py-2.5 text-right font-medium">Locked</th>
-                <th className="px-3 py-2.5 text-right font-medium">Fun</th>
-                <th className="px-3 py-2.5 text-right font-medium">Skill</th>
-                <th className="px-3 py-2.5 text-right font-medium">Flex</th>
-                <th className="px-3 py-2.5 text-right font-medium">Spent (Fun/Sk/Fl)</th>
+                <th className="px-3 py-2.5 text-right font-medium">{cfg.lockedLabel}</th>
+                <th className="px-3 py-2.5 text-right font-medium">{cfg.fundLabel}</th>
+                <th className="px-3 py-2.5 text-right font-medium">{cfg.skillLabel}</th>
+                <th className="px-3 py-2.5 text-right font-medium">{cfg.flexLabel}</th>
+                <th className="px-3 py-2.5 text-right font-medium">Spent (per bucket)</th>
                 <th className="px-3 py-2.5 text-right font-medium">Net</th>
               </tr>
             </thead>

@@ -1,11 +1,12 @@
 "use client";
 
 import { Lightbulb, TrendingUp, TrendingDown, Minus } from "lucide-react";
-import type { WeekView } from "@/hooks/use-finance";
+import { useFinanceConfigOrDefaults, type WeekView } from "@/hooks/use-finance";
+import type { AllocationLabels } from "@/lib/finance-utils";
 
 type Advice = { id: string; text: string; tone: "positive" | "neutral" | "warning" };
 
-function deriveAdvice(income: WeekView): Advice[] {
+function deriveAdvice(income: WeekView, labels: AllocationLabels): Advice[] {
   const advice: Advice[] = [];
   const { remaining, spent, amount } = income;
   const totalSpent = spent.FUND + spent.SKILL + spent.FLEX;
@@ -21,21 +22,21 @@ function deriveAdvice(income: WeekView): Advice[] {
 
   const skillPct = income.skill > 0 ? remaining.skill / income.skill : 1;
   if (skillPct >= 0.8) {
-    advice.push({ id: "skill-intact", text: `Skill balance is ${(skillPct * 100).toFixed(0)}% intact — good week to invest in a course or tool.`, tone: "positive" });
+    advice.push({ id: "skill-intact", text: `${labels.skillLabel} balance is ${(skillPct * 100).toFixed(0)}% intact — good week to invest there.`, tone: "positive" });
   } else if (skillPct < 0.3) {
-    advice.push({ id: "skill-low", text: "Skill budget is nearly depleted — avoid further skill spending this week.", tone: "warning" });
+    advice.push({ id: "skill-low", text: `${labels.skillLabel} budget is nearly depleted — avoid further spending from it this week.`, tone: "warning" });
   }
 
   const flexPct = income.flex > 0 ? remaining.flex / income.flex : 1;
   if (flexPct < 0.2) {
-    advice.push({ id: "flex-low", text: "Flex balance is almost gone — be mindful of day-to-day spending for the rest of the week.", tone: "warning" });
+    advice.push({ id: "flex-low", text: `${labels.flexLabel} balance is almost gone — be mindful for the rest of the week.`, tone: "warning" });
   } else if (flexPct === 1 && spent.FLEX === 0) {
-    advice.push({ id: "flex-untouched", text: "Flex budget untouched so far — great discipline.", tone: "positive" });
+    advice.push({ id: "flex-untouched", text: `${labels.flexLabel} budget untouched so far — great discipline.`, tone: "positive" });
   }
 
   const fundPct = income.fund > 0 ? remaining.fund / income.fund : 1;
   if (fundPct < 0.5) {
-    advice.push({ id: "fund-low", text: "More than half the Fun balance spent — protect the remainder if possible.", tone: "warning" });
+    advice.push({ id: "fund-low", text: `More than half the ${labels.fundLabel} balance spent — protect the remainder if possible.`, tone: "warning" });
   }
 
   return advice.slice(0, 4);
@@ -48,7 +49,8 @@ const TONE = {
 };
 
 export function AdvicePanel({ income }: { income: WeekView }) {
-  const advice = deriveAdvice(income);
+  const cfg = useFinanceConfigOrDefaults();
+  const advice = deriveAdvice(income, cfg);
   return (
     <div className="space-y-2.5">
       <div className="flex items-center gap-2 mb-1">
