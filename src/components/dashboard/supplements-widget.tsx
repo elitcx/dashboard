@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, Sun, Sunset, Moon, Droplet, BedDouble } from "lucide-react";
+import { ArrowUpRight, Sun, Sunset, Moon, Droplet, BedDouble, Flame } from "lucide-react";
 import { GlassCard, CardLabel } from "@/components/ui/glass-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { useSupplements, useSupplementLogs, useWater, useSleepLogs } from "@/hooks/use-health";
+import { useSupplements, useSupplementLogs, useWater, useSleepLogs, useHabits, useHabitLogs } from "@/hooks/use-health";
 
 type TimeSlotProps = {
   Icon: typeof Sun;
@@ -43,6 +43,8 @@ export function SupplementsWidget({ delay = 0 }: { delay?: number }) {
   const { data: logData } = useSupplementLogs(today);
   const { data: waterData } = useWater(today);
   const { data: sleepData } = useSleepLogs(1);
+  const { data: habitData } = useHabits();
+  const { data: habitLogData } = useHabitLogs(today);
 
   const schedules = supData?.schedules ?? [];
   const takenIds = new Set((logData?.logs ?? []).map((l) => l.scheduleId));
@@ -58,6 +60,8 @@ export function SupplementsWidget({ delay = 0 }: { delay?: number }) {
   const glasses = waterData?.glasses ?? 0;
   const goal = waterData?.goal ?? 8;
   const lastSleep = sleepData?.logs?.[0];
+  const habitTotal = habitData?.habits?.length ?? 0;
+  const habitDone = new Set((habitLogData?.logs ?? []).map((l) => l.habitId)).size;
 
   return (
     <GlassCard delay={delay} className="flex h-full flex-col">
@@ -95,8 +99,8 @@ export function SupplementsWidget({ delay = 0 }: { delay?: number }) {
               </div>
             ))}
           </div>
-          <div className="mt-6 grid grid-cols-2 gap-3 border-t border-white/5 pt-5">
-            {[Droplet, BedDouble].map((Icon, i) => (
+          <div className="mt-6 grid grid-cols-3 gap-3 border-t border-white/5 pt-5">
+            {[Droplet, BedDouble, Flame].map((Icon, i) => (
               <div key={i} className="flex items-center gap-2.5">
                 <Icon className="h-4 w-4 text-muted-foreground/30" strokeWidth={1.75} />
                 <div className="space-y-1">
@@ -115,7 +119,7 @@ export function SupplementsWidget({ delay = 0 }: { delay?: number }) {
             <TimeSlot Icon={Moon} label="Night" count={count(night)} total={night.length} />
           </div>
 
-          <div className="mt-6 grid grid-cols-2 gap-3 border-t border-white/5 pt-5">
+          <div className="mt-6 grid grid-cols-3 gap-3 border-t border-white/5 pt-5">
             <div className="flex items-center gap-2.5">
               <Droplet className="h-4 w-4 text-sky-400" strokeWidth={1.75} />
               <div>
@@ -131,6 +135,15 @@ export function SupplementsWidget({ delay = 0 }: { delay?: number }) {
                 <div className="text-xs text-muted-foreground">Sleep</div>
                 <div className="font-mono text-sm font-medium text-white">
                   {lastSleep ? `${lastSleep.hoursSlept}h` : "—"}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <Flame className="h-4 w-4 text-orange-400" strokeWidth={1.75} />
+              <div>
+                <div className="text-xs text-muted-foreground">Habits</div>
+                <div className="font-mono text-sm font-medium text-white">
+                  {habitTotal === 0 ? "—" : `${habitDone} / ${habitTotal}`}
                 </div>
               </div>
             </div>

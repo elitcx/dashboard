@@ -5,6 +5,8 @@ import { SupplementsWidget } from "@/components/dashboard/supplements-widget";
 import { GymWidget } from "@/components/dashboard/gym-widget";
 import { TodoWidget } from "@/components/dashboard/todo-widget";
 import { FinanceWidget } from "@/components/dashboard/finance-widget";
+import { WeatherWidget } from "@/components/dashboard/weather-widget";
+import { AISummaryWidget } from "@/components/dashboard/ai-summary-widget";
 
 export default async function HomePage() {
   const user = await getCurrentUser();
@@ -14,11 +16,13 @@ export default async function HomePage() {
       <Greeting name={user?.name ?? user?.email?.split("@")[0]} />
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-        <ScheduleWidget delay={0.05} />
-        <TodoWidget delay={0.1} />
-        <SupplementsWidget delay={0.15} />
-        <GymWidget delay={0.2} />
-        <FinanceWidget delay={0.25} />
+        <WeatherWidget delay={0.05} />
+        <ScheduleWidget delay={0.1} />
+        <TodoWidget delay={0.15} />
+        <SupplementsWidget delay={0.2} />
+        <GymWidget delay={0.25} />
+        <FinanceWidget delay={0.3} />
+        <AISummaryWidget delay={0.35} />
       </div>
     </>
   );

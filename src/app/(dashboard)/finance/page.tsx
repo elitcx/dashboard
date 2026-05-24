@@ -164,15 +164,13 @@ export default function FinancePage() {
             <div className="space-y-6">
               <IncomeForm week={weekStr} entries={week?.entries ?? []} />
               {week && week.amount > 0 ? (
-                <>
-                  <BalanceCards income={week} />
-                  <AdvicePanel income={week} />
-                </>
+                <BalanceCards income={week} />
               ) : (
                 <div className="rounded-3xl border border-white/5 bg-white/[0.02] py-12 text-center text-sm text-muted-foreground">
                   Add income above to see your balance breakdown.
                 </div>
               )}
+              <AdvicePanel weekStr={weekStr} />
               <ExpenseLogger />
               <div className="glass rounded-3xl p-6">
                 <h3 className="mb-4 text-base font-medium text-white">

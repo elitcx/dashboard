@@ -32,6 +32,10 @@ model User {
   expenses            Expense[]
   todoCompletions     TodoCompletion[]
   financeConfig       FinanceConfig?
+  habits              Habit[]
+  habitLogs           HabitLog[]
+  weeklySummaries     WeeklySummary[]
+  aiInsights          AIInsight[]
 }
 
 model Account {
@@ -238,6 +242,68 @@ model SleepLog {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date])
+  @@index([userId])
+}
+
+// ─── AI INSIGHTS (generic cache for all AI-generated panels) ─────────
+
+model AIInsight {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // "health_daily" | "finance_weekly"
+  cacheKey    String   // date (YYYY-MM-DD) for daily, weekStart ISO for weekly
+  content     String   @db.Text
+  generatedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type, cacheKey])
+  @@index([userId])
+}
+
+// ─── HABITS ──────────────────────────────────────────────────────────
+
+model Habit {
+  id        String     @id @default(cuid())
+  userId    String
+  name      String
+  icon      String?
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+
+  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs HabitLog[]
+
+  @@index([userId])
+}
+
+model HabitLog {
+  id          String   @id @default(cuid())
+  userId      String
+  habitId     String
+  date        DateTime
+  completedAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habit Habit @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  @@unique([habitId, date])
+  @@index([userId, date])
+}
+
+// ─── AI WEEKLY SUMMARY ───────────────────────────────────────────────
+
+model WeeklySummary {
+  id            String   @id @default(cuid())
+  userId        String
+  weekStartDate DateTime
+  summary       String   @db.Text
+  highlights    String   @db.Text
+  generatedAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, weekStartDate])
   @@index([userId])
 }
 

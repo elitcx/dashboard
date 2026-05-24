@@ -152,3 +152,104 @@ export function useLogSleep() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["sleep"] }),
   });
 }
+
+export function useDeleteSleepLog() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      fetch(`/api/health/sleep/${id}`, { method: "DELETE" }).then((r) => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["sleep"] }),
+  });
+}
+
+export function useUpdateSleepLog() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; hoursSlept?: number; quality?: number | null; notes?: string | null }) =>
+      fetch(`/api/health/sleep/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then((r) => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["sleep"] }),
+  });
+}
+
+// ── Habits ────────────────────────────────────────────────────────────
+
+export type Habit = {
+  id: string;
+  name: string;
+  icon: string | null;
+  isActive: boolean;
+};
+
+export type HabitLog = {
+  id: string;
+  habitId: string;
+};
+
+export function useHabits() {
+  return useQuery<{ habits: Habit[] }>({
+    queryKey: ["habits"],
+    queryFn: () => fetch("/api/health/habits").then((r) => r.json()),
+  });
+}
+
+export function useCreateHabit() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name: string; icon?: string }) =>
+      fetch("/api/health/habits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }).then((r) => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["habits"] }),
+  });
+}
+
+export function useDeleteHabit() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      fetch(`/api/health/habits/${id}`, { method: "DELETE" }).then((r) => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["habits"] }),
+  });
+}
+
+export function useHabitLogs(date?: string) {
+  const d = date ?? todayStr();
+  return useQuery<{ logs: HabitLog[] }>({
+    queryKey: ["habit-logs", d],
+    queryFn: () => fetch(`/api/health/habits/log?date=${d}`).then((r) => r.json()),
+  });
+}
+
+export function useToggleHabit(date?: string) {
+  const d = date ?? todayStr();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (habitId: string) =>
+      fetch("/api/health/habits/log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ habitId, date: d }),
+      }).then((r) => r.json()),
+    onMutate: async (habitId) => {
+      await qc.cancelQueries({ queryKey: ["habit-logs", d] });
+      const prev = qc.getQueryData<{ logs: HabitLog[] }>(["habit-logs", d]);
+      qc.setQueryData<{ logs: HabitLog[] }>(["habit-logs", d], (old) => {
+        if (!old) return old;
+        const existing = old.logs.find((l) => l.habitId === habitId);
+        if (existing) return { logs: old.logs.filter((l) => l.habitId !== habitId) };
+        return { logs: [...old.logs, { id: "optimistic", habitId }] };
+      });
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["habit-logs", d], ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["habit-logs", d] }),
+  });
+}

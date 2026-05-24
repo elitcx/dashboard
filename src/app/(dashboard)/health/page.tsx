@@ -5,6 +5,7 @@ import { SupplementChecklist } from "@/components/health/supplement-checklist";
 import { WaterTracker } from "@/components/health/water-tracker";
 import { SleepLogger } from "@/components/health/sleep-logger";
 import { InsightsPanel } from "@/components/health/insights-panel";
+import { HabitChecklist } from "@/components/health/habit-checklist";
 
 export default function HealthPage() {
   return (
@@ -29,6 +30,9 @@ export default function HealthPage() {
         <div className="space-y-6">
           <WaterTracker />
           <SleepLogger />
+        </div>
+        <div className="lg:col-span-2">
+          <HabitChecklist />
         </div>
       </div>
     </>
