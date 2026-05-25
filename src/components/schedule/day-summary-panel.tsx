@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Sparkles,
@@ -14,6 +14,7 @@ import {
   MapPin,
   Video,
   CalendarDays,
+  ChevronDown,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -76,6 +77,7 @@ function todayStr(): string {
 export function DaySummaryPanel({ selectedCalendarIds }: Props) {
   const date = todayStr();
   const qc = useQueryClient();
+  const [expanded, setExpanded] = useState(true);
 
   const calIdsParam = useMemo(
     () => (selectedCalendarIds === null ? null : selectedCalendarIds.join(",")),
@@ -159,41 +161,66 @@ export function DaySummaryPanel({ selectedCalendarIds }: Props) {
             </div>
           </div>
 
-          <button
-            onClick={() => generate.mutate()}
-            disabled={generating}
-            className={cn(
-              "group relative inline-flex items-center gap-2 overflow-hidden rounded-full px-4 py-2 text-xs font-medium transition-all",
-              "bg-gradient-to-r from-emerald-500/20 via-sky-500/20 to-violet-500/20",
-              "text-white ring-1 ring-emerald-400/30 hover:ring-emerald-400/60",
-              "shadow-[0_0_24px_-6px_rgba(16,185,129,0.45)] hover:shadow-[0_0_32px_-4px_rgba(16,185,129,0.65)]",
-              "disabled:opacity-70 disabled:cursor-not-allowed",
-            )}
-            title={hasSummary ? "Regenerate" : "Generate today's summary"}
-          >
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 group-hover:translate-x-full"
-            />
-            {generating ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2.25} />
-            ) : hasSummary ? (
-              <RefreshCw className="h-3.5 w-3.5" strokeWidth={2.25} />
-            ) : (
-              <Sparkles className="h-3.5 w-3.5" strokeWidth={2.25} />
-            )}
-            <span>
-              {generating
-                ? "Reading your day…"
-                : hasSummary
-                  ? "Regenerate"
-                  : "Generate Day Summary"}
-            </span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => generate.mutate()}
+              disabled={generating}
+              className={cn(
+                "group relative inline-flex items-center gap-2 overflow-hidden rounded-full px-4 py-2 text-xs font-medium transition-all",
+                "bg-gradient-to-r from-emerald-500/20 via-sky-500/20 to-violet-500/20",
+                "text-white ring-1 ring-emerald-400/30 hover:ring-emerald-400/60",
+                "shadow-[0_0_24px_-6px_rgba(16,185,129,0.45)] hover:shadow-[0_0_32px_-4px_rgba(16,185,129,0.65)]",
+                "disabled:opacity-70 disabled:cursor-not-allowed",
+              )}
+              title={hasSummary ? "Regenerate" : "Generate today's summary"}
+            >
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 group-hover:translate-x-full"
+              />
+              {generating ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2.25} />
+              ) : hasSummary ? (
+                <RefreshCw className="h-3.5 w-3.5" strokeWidth={2.25} />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" strokeWidth={2.25} />
+              )}
+              <span>
+                {generating
+                  ? "Reading your day…"
+                  : hasSummary
+                    ? "Regenerate"
+                    : "Generate Day Summary"}
+              </span>
+            </button>
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              aria-label={expanded ? "Collapse summary" : "Expand summary"}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-white"
+            >
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 transition-transform duration-300",
+                  expanded && "rotate-180",
+                )}
+                strokeWidth={2}
+              />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
-        <AnimatePresence mode="wait" initial={false}>
+        <AnimatePresence initial={false}>
+          {expanded && (
+            <motion.div
+              key="body"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              style={{ overflow: "hidden" }}
+            >
+              <AnimatePresence mode="wait" initial={false}>
           {generating ? (
             <motion.div
               key="loading"
@@ -474,6 +501,9 @@ export function DaySummaryPanel({ selectedCalendarIds }: Props) {
                   Generate
                 </span>
               </button>
+            </motion.div>
+          )}
+              </AnimatePresence>
             </motion.div>
           )}
         </AnimatePresence>

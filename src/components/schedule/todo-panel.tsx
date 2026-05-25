@@ -176,7 +176,7 @@ export function TodoPanel() {
           {/* Add task */}
           <form onSubmit={onCreate} className="mb-3 space-y-1.5">
             <div className={cn(
-              "flex items-center gap-2 rounded-2xl border bg-white/[0.02] px-2 py-1.5 transition-colors",
+              "flex min-w-0 items-center gap-2 overflow-hidden rounded-2xl border bg-white/[0.02] px-2 py-1.5 transition-colors",
               create.isError ? "border-red-500/30" : "border-white/5",
             )}>
               <Plus className="ml-1 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -186,13 +186,13 @@ export function TodoPanel() {
                 onChange={(e) => { setNewTitle(e.target.value); }}
                 placeholder={loadingLists ? "Loading lists…" : "Add a task"}
                 disabled={loadingLists && !activeListId}
-                className="flex-1 bg-transparent text-sm text-white placeholder:text-muted-foreground focus:outline-none disabled:opacity-50"
+                className="min-w-0 flex-1 bg-transparent text-sm text-white placeholder:text-muted-foreground focus:outline-none disabled:opacity-50"
               />
               <button
                 type="button"
                 onClick={() => setShowNewDue((v) => !v)}
                 className={cn(
-                  "rounded-md p-1 transition-colors hover:bg-white/[0.04]",
+                  "shrink-0 rounded-md p-1 transition-colors hover:bg-white/[0.04]",
                   showNewDue ? "text-emerald-300" : "text-muted-foreground",
                 )}
                 aria-label="Add due date"
@@ -202,6 +202,7 @@ export function TodoPanel() {
               <Button
                 type="submit"
                 size="sm"
+                className="shrink-0"
                 disabled={!newTitle.trim() || create.isPending || (!activeListId && loadingLists)}
               >
                 {create.isPending ? "Adding…" : "Add"}
