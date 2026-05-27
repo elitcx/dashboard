@@ -18,6 +18,7 @@ type Props = {
   events: CalendarEvent[];
   onSlotClick: (start: Date, end: Date) => void;
   onEventClick: (event: CalendarEvent) => void;
+  onEventDrop: (event: CalendarEvent, newStart: Date, newEnd: Date, copy: boolean) => void;
 };
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -43,7 +44,7 @@ function fmtMins(mins: number): string {
   return `${displayH}:${String(m).padStart(2, "0")} ${period}`;
 }
 
-export function WeekView({ date, events, onSlotClick, onEventClick }: Props) {
+export function WeekView({ date, events, onSlotClick, onEventClick, onEventDrop }: Props) {
   const days = getWeekDays(date);
   const today = new Date();
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -73,6 +74,132 @@ export function WeekView({ date, events, onSlotClick, onEventClick }: Props) {
     startMin: number;
     endMin: number;
   } | null>(null);
+
+  // Event drag-to-move / drag-to-resize state
+  const eventDragLiveRef = useRef<{
+    event: CalendarEvent;
+    type: "move" | "resize";
+    offsetMin: number;
+    durMin: number;
+    dayIndex: number;
+    startMin: number;
+    endMin: number;
+    hasDragged: boolean;
+  } | null>(null);
+  const [eventDrag, setEventDrag] = useState<{
+    event: CalendarEvent;
+    dayIndex: number;
+    startMin: number;
+    endMin: number;
+    copy: boolean;
+  } | null>(null);
+
+  function startEventDrag(
+    ev: CalendarEvent,
+    dayIdx: number,
+    type: "move" | "resize",
+    e: React.MouseEvent,
+  ) {
+    if (e.button !== 0) return;
+    if (ev.readOnly) return;
+    e.stopPropagation();
+    e.preventDefault();
+
+    const origStart = minutesSinceMidnight(new Date(ev.start));
+    const origEnd = minutesSinceMidnight(new Date(ev.end));
+    const durMin = Math.max(15, origEnd - origStart);
+
+    const sc = scrollRef.current;
+    const rawMouseMin = sc
+      ? ((e.clientY - sc.getBoundingClientRect().top + sc.scrollTop) / PX_PER_HOUR) * 60
+      : origStart;
+    const offsetMin =
+      type === "move"
+        ? Math.max(0, Math.min(durMin, snapToGrid(rawMouseMin) - snapToGrid(origStart)))
+        : 0;
+
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+
+    eventDragLiveRef.current = {
+      event: ev,
+      type,
+      offsetMin,
+      durMin,
+      dayIndex: dayIdx,
+      startMin: origStart,
+      endMin: origEnd,
+      hasDragged: false,
+    };
+
+    function onMove(me: MouseEvent) {
+      const live = eventDragLiveRef.current;
+      if (!live) return;
+
+      if (!live.hasDragged) {
+        const dx = me.clientX - startClientX;
+        const dy = me.clientY - startClientY;
+        if (Math.sqrt(dx * dx + dy * dy) < 5) return;
+        live.hasDragged = true;
+        document.body.style.cursor = "grabbing";
+      }
+
+      const sc = scrollRef.current;
+      const mouseMin = sc
+        ? ((me.clientY - sc.getBoundingClientRect().top + sc.scrollTop) / PX_PER_HOUR) * 60
+        : live.startMin;
+
+      if (live.type === "move") {
+        let newDayIdx = live.dayIndex;
+        if (sc) {
+          const rect = sc.getBoundingClientRect();
+          const x = me.clientX - rect.left - 64;
+          const dayW = (rect.width - 64) / 7;
+          newDayIdx = Math.max(0, Math.min(6, Math.floor(x / dayW)));
+        }
+        const rawStart = snapToGrid(mouseMin - live.offsetMin);
+        const clampedStart = Math.max(0, Math.min(1440 - live.durMin, rawStart));
+        live.dayIndex = newDayIdx;
+        live.startMin = clampedStart;
+        live.endMin = clampedStart + live.durMin;
+      } else {
+        live.endMin = Math.min(
+          1440,
+          Math.max(live.startMin + 15, snapToGrid(mouseMin)),
+        );
+      }
+
+      setEventDrag({
+        event: live.event,
+        dayIndex: live.dayIndex,
+        startMin: live.startMin,
+        endMin: live.endMin,
+        copy: me.altKey,
+      });
+    }
+
+    function onUp(me: MouseEvent) {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+
+      const live = eventDragLiveRef.current;
+      eventDragLiveRef.current = null;
+      setEventDrag(null);
+
+      if (!live?.hasDragged) return;
+
+      const targetDay = days[live.dayIndex];
+      const newStart = new Date(targetDay);
+      newStart.setHours(Math.floor(live.startMin / 60), live.startMin % 60, 0, 0);
+      const newEnd = new Date(targetDay);
+      newEnd.setHours(Math.floor(live.endMin / 60), live.endMin % 60, 0, 0);
+      onEventDrop(live.event, newStart, newEnd, me.altKey);
+    }
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
 
   const allDayEventsByDay = days.map((d) =>
     events.filter((e) => {
@@ -181,7 +308,7 @@ export function WeekView({ date, events, onSlotClick, onEventClick }: Props) {
           const showDrag = dragSel?.dayIndex === i;
 
           function handleMouseDown(e: React.MouseEvent<HTMLDivElement>) {
-            if ((e.target as HTMLElement).closest("button")) return;
+            if ((e.target as HTMLElement).closest("[data-event]")) return;
             if (e.button !== 0) return;
             e.preventDefault();
 
@@ -292,33 +419,79 @@ export function WeekView({ date, events, onSlotClick, onEventClick }: Props) {
                 const height = (durMin / 60) * PX_PER_HOUR;
                 const widthPct = (colSpan / totalCols) * 100;
                 const leftPct = (col / totalCols) * 100;
+                const isBeingMoved = eventDrag?.event.id === event.id && !eventDrag.copy;
 
                 return (
-                  <button
+                  <div
                     key={event.id}
-                    onClick={(e) => { e.stopPropagation(); onEventClick(event); }}
+                    role="button"
+                    tabIndex={0}
+                    data-event="true"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!eventDragLiveRef.current?.hasDragged) onEventClick(event);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); onEventClick(event); }
+                    }}
+                    onMouseDown={(e) => {
+                      if ((e.target as HTMLElement).dataset.resize) return;
+                      startEventDrag(event, i, "move", e);
+                    }}
                     style={{
                       top,
                       height,
                       left: `calc(${leftPct}% + 2px)`,
                       width: `calc(${widthPct}% - 4px)`,
-                      backgroundColor: hexToRgba(event.background, 0.18),
+                      backgroundColor: hexToRgba(event.background, isBeingMoved ? 0.09 : 0.18),
                       borderLeft: `3px solid ${event.background}`,
                       boxShadow: `inset 0 0 0 1px ${hexToRgba(event.background, 0.2)}`,
+                      opacity: isBeingMoved ? 0.45 : 1,
                     }}
-                    className="absolute z-10 cursor-pointer overflow-hidden rounded-r-lg rounded-l-none px-2 py-1.5 text-left text-white transition-all hover:z-30 hover:brightness-125"
+                    className="absolute z-10 cursor-grab select-none overflow-hidden rounded-r-lg rounded-l-none px-2 py-1.5 text-left text-white transition-opacity hover:z-30 hover:brightness-125"
                   >
-                    <div className="truncate text-xs font-semibold leading-tight">
+                    <div className="pointer-events-none truncate text-xs font-semibold leading-tight">
                       {event.title}
                     </div>
                     {height > 32 && (
-                      <div className="mt-0.5 truncate text-[10px] text-white/60">
+                      <div className="pointer-events-none mt-0.5 truncate text-[10px] text-white/60">
                         {formatTime(event.start)}
                       </div>
                     )}
-                  </button>
+                    {!event.readOnly && height > 24 && (
+                      <div
+                        data-resize="true"
+                        className="absolute inset-x-0 bottom-0 h-3 cursor-s-resize"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          startEventDrag(event, i, "resize", e);
+                        }}
+                      />
+                    )}
+                  </div>
                 );
               })}
+
+              {/* Ghost event during drag */}
+              {eventDrag?.dayIndex === i && (
+                <div
+                  className="pointer-events-none absolute inset-x-0.5 z-40 overflow-hidden rounded-r-lg rounded-l-none px-2 py-1"
+                  style={{
+                    top: (eventDrag.startMin / 60) * PX_PER_HOUR,
+                    height: Math.max(20, ((eventDrag.endMin - eventDrag.startMin) / 60) * PX_PER_HOUR),
+                    backgroundColor: hexToRgba(eventDrag.event.background, 0.55),
+                    borderLeft: `3px solid ${eventDrag.event.background}`,
+                    boxShadow: `0 0 0 2px ${hexToRgba(eventDrag.event.background, 0.5)}`,
+                  }}
+                >
+                  <div className="text-[10px] font-semibold text-white">
+                    {fmtMins(eventDrag.startMin)} – {fmtMins(eventDrag.endMin)}
+                  </div>
+                  {eventDrag.copy && (
+                    <div className="text-[9px] text-white/70">+ Copy</div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

@@ -19,6 +19,7 @@ type Props = {
   events: CalendarEvent[];
   onSlotClick: (start: Date, end: Date) => void;
   onEventClick: (event: CalendarEvent) => void;
+  onEventDrop: (event: CalendarEvent, newStart: Date, newEnd: Date, copy: boolean) => void;
 };
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -44,7 +45,7 @@ function fmtMins(mins: number): string {
   return `${displayH}:${String(m).padStart(2, "0")} ${period}`;
 }
 
-export function DayView({ date, events, onSlotClick, onEventClick }: Props) {
+export function DayView({ date, events, onSlotClick, onEventClick, onEventDrop }: Props) {
   const today = new Date();
   const isToday = isSameDay(date, today);
   const dayEvents = getEventsForDay(events, date);
@@ -78,8 +79,118 @@ export function DayView({ date, events, onSlotClick, onEventClick }: Props) {
   } | null>(null);
   const [dragSel, setDragSel] = useState<{ startMin: number; endMin: number } | null>(null);
 
+  // Event drag-to-move / drag-to-resize state
+  const eventDragLiveRef = useRef<{
+    event: CalendarEvent;
+    type: "move" | "resize";
+    offsetMin: number;
+    durMin: number;
+    startMin: number;
+    endMin: number;
+    hasDragged: boolean;
+  } | null>(null);
+  const [eventDrag, setEventDrag] = useState<{
+    event: CalendarEvent;
+    startMin: number;
+    endMin: number;
+    copy: boolean;
+  } | null>(null);
+
+  function startEventDrag(
+    ev: CalendarEvent,
+    type: "move" | "resize",
+    e: React.MouseEvent,
+  ) {
+    if (e.button !== 0) return;
+    if (ev.readOnly) return;
+    e.stopPropagation();
+    e.preventDefault();
+
+    const col = colRef.current;
+    if (!col) return;
+
+    const origStart = minutesSinceMidnight(new Date(ev.start));
+    const origEnd = minutesSinceMidnight(new Date(ev.end));
+    const durMin = Math.max(15, origEnd - origStart);
+
+    const getY = (cy: number) => cy - col.getBoundingClientRect().top;
+    const rawMouseMin = (getY(e.clientY) / PX_PER_HOUR) * 60;
+    const offsetMin =
+      type === "move"
+        ? Math.max(0, Math.min(durMin, snapToGrid(rawMouseMin) - snapToGrid(origStart)))
+        : 0;
+
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+
+    eventDragLiveRef.current = {
+      event: ev,
+      type,
+      offsetMin,
+      durMin,
+      startMin: origStart,
+      endMin: origEnd,
+      hasDragged: false,
+    };
+
+    function onMove(me: MouseEvent) {
+      const live = eventDragLiveRef.current;
+      if (!live) return;
+
+      if (!live.hasDragged) {
+        const dx = me.clientX - startClientX;
+        const dy = me.clientY - startClientY;
+        if (Math.sqrt(dx * dx + dy * dy) < 5) return;
+        live.hasDragged = true;
+        document.body.style.cursor = "grabbing";
+      }
+
+      const mouseMin = (getY(me.clientY) / PX_PER_HOUR) * 60;
+
+      if (live.type === "move") {
+        const rawStart = snapToGrid(mouseMin - live.offsetMin);
+        const clamped = Math.max(0, Math.min(1440 - live.durMin, rawStart));
+        live.startMin = clamped;
+        live.endMin = clamped + live.durMin;
+      } else {
+        live.endMin = Math.min(
+          1440,
+          Math.max(live.startMin + 15, snapToGrid(mouseMin)),
+        );
+      }
+
+      setEventDrag({
+        event: live.event,
+        startMin: live.startMin,
+        endMin: live.endMin,
+        copy: me.altKey,
+      });
+    }
+
+    function onUp(me: MouseEvent) {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+
+      const live = eventDragLiveRef.current;
+      eventDragLiveRef.current = null;
+      setEventDrag(null);
+
+      if (!live?.hasDragged) return;
+
+      const newStart = new Date(date);
+      newStart.setHours(Math.floor(live.startMin / 60), live.startMin % 60, 0, 0);
+      const newEnd = new Date(date);
+      newEnd.setHours(Math.floor(live.endMin / 60), live.endMin % 60, 0, 0);
+      onEventDrop(live.event, newStart, newEnd, me.altKey);
+    }
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
+
   function handleMouseDown(e: React.MouseEvent<HTMLDivElement>) {
-    if ((e.target as HTMLElement).closest("button")) return;
+    if ((e.target as HTMLElement).closest("[data-event]")) return;
     if (e.button !== 0) return;
     e.preventDefault();
 
@@ -279,45 +390,91 @@ export function DayView({ date, events, onSlotClick, onEventClick }: Props) {
             const height = (durMin / 60) * PX_PER_HOUR;
             const widthPct = (colSpan / totalCols) * 100;
             const leftPct = (col / totalCols) * 100;
+            const isBeingMoved = eventDrag?.event.id === event.id && !eventDrag.copy;
 
             return (
-              <button
+              <div
                 key={event.id}
-                onClick={(e) => { e.stopPropagation(); onEventClick(event); }}
+                role="button"
+                tabIndex={0}
+                data-event="true"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!eventDragLiveRef.current?.hasDragged) onEventClick(event);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); onEventClick(event); }
+                }}
+                onMouseDown={(e) => {
+                  if ((e.target as HTMLElement).dataset.resize) return;
+                  startEventDrag(event, "move", e);
+                }}
                 style={{
                   top,
                   height,
                   left: `calc(${leftPct}% + 4px)`,
                   width: `calc(${widthPct}% - 8px)`,
-                  backgroundColor: hexToRgba(event.background, 0.18),
+                  backgroundColor: hexToRgba(event.background, isBeingMoved ? 0.09 : 0.18),
                   borderLeft: `3px solid ${event.background}`,
                   boxShadow: `inset 0 0 0 1px ${hexToRgba(event.background, 0.2)}`,
+                  opacity: isBeingMoved ? 0.45 : 1,
                 }}
-                className="absolute z-10 cursor-pointer overflow-hidden rounded-r-xl rounded-l-none px-3 py-2 text-left text-white transition-all hover:z-30 hover:brightness-125"
+                className="absolute z-10 cursor-grab select-none overflow-hidden rounded-r-xl rounded-l-none px-3 py-2 text-left text-white transition-opacity hover:z-30 hover:brightness-125"
               >
-                <div className="truncate text-sm font-semibold leading-tight">
+                <div className="pointer-events-none truncate text-sm font-semibold leading-tight">
                   {event.title}
                 </div>
                 {height > 40 && (
-                  <div className="mt-0.5 truncate text-[11px] text-white/60">
+                  <div className="pointer-events-none mt-0.5 truncate text-[11px] text-white/60">
                     {formatTime(event.start)} – {formatTime(event.end)}
                   </div>
                 )}
                 {height > 72 && event.location && (
-                  <div className="mt-1.5 flex items-center gap-1.5 truncate text-[11px] text-white/50">
+                  <div className="pointer-events-none mt-1.5 flex items-center gap-1.5 truncate text-[11px] text-white/50">
                     <MapPin className="h-3 w-3 shrink-0" />
                     <span className="truncate">{event.location}</span>
                   </div>
                 )}
                 {height > 72 && event.meetingUrl && !event.location && (
-                  <div className="mt-1.5 flex items-center gap-1.5 truncate text-[11px] text-white/50">
+                  <div className="pointer-events-none mt-1.5 flex items-center gap-1.5 truncate text-[11px] text-white/50">
                     <Video className="h-3 w-3 shrink-0" />
                     <span>Google Meet</span>
                   </div>
                 )}
-              </button>
+                {!event.readOnly && height > 30 && (
+                  <div
+                    data-resize="true"
+                    className="absolute inset-x-0 bottom-0 h-3 cursor-s-resize"
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      startEventDrag(event, "resize", e);
+                    }}
+                  />
+                )}
+              </div>
             );
           })}
+
+          {/* Ghost event during drag */}
+          {eventDrag && (
+            <div
+              className="pointer-events-none absolute inset-x-1 z-40 overflow-hidden rounded-r-xl rounded-l-none px-3 py-2"
+              style={{
+                top: (eventDrag.startMin / 60) * PX_PER_HOUR,
+                height: Math.max(25, ((eventDrag.endMin - eventDrag.startMin) / 60) * PX_PER_HOUR),
+                backgroundColor: hexToRgba(eventDrag.event.background, 0.55),
+                borderLeft: `3px solid ${eventDrag.event.background}`,
+                boxShadow: `0 0 0 2px ${hexToRgba(eventDrag.event.background, 0.5)}`,
+              }}
+            >
+              <div className="text-[11px] font-semibold text-white">
+                {fmtMins(eventDrag.startMin)} – {fmtMins(eventDrag.endMin)}
+              </div>
+              {eventDrag.copy && (
+                <div className="text-[10px] text-white/70">+ Copy</div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </motion.div>

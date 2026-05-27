@@ -19,7 +19,7 @@ import {
   formatTime,
   hexToRgba,
 } from "@/lib/calendar-utils";
-import { useCalendarEvents } from "@/hooks/use-calendar";
+import { useCalendarEvents, useCreateEvent, useUpdateEvent } from "@/hooks/use-calendar";
 import type { CalendarEvent, CalendarListEntry } from "@/lib/google-calendar";
 import { MonthView } from "./month-view";
 import { WeekView } from "./week-view";
@@ -42,6 +42,33 @@ export function CalendarView({
   onToggleCalendar,
   onSetManyCalendars,
 }: Props) {
+  const updateEvent = useUpdateEvent();
+  const createEvent = useCreateEvent();
+
+  async function handleEventDrop(event: CalendarEvent, newStart: Date, newEnd: Date, copy: boolean) {
+    if (copy) {
+      await createEvent.mutateAsync({
+        calendarId: event.calendarId ?? "primary",
+        title: event.title,
+        description: event.description,
+        location: event.location,
+        start: newStart.toISOString(),
+        end: newEnd.toISOString(),
+        allDay: event.allDay,
+        colorId: event.colorId,
+        useDefaultReminders: event.remindersUseDefault,
+        reminders: event.remindersUseDefault ? undefined : event.reminders,
+      });
+    } else {
+      await updateEvent.mutateAsync({
+        id: event.id,
+        calendarId: event.calendarId ?? "primary",
+        start: newStart.toISOString(),
+        end: newEnd.toISOString(),
+      });
+    }
+  }
+
   const [date, setDate] = useState<Date>(new Date());
   const [view, setView] = useState<ViewMode>("week");
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
@@ -304,6 +331,7 @@ export function CalendarView({
             events={events}
             onSlotClick={(s, e) => openNew(s, e)}
             onEventClick={openEdit}
+            onEventDrop={handleEventDrop}
           />
         )}
         {view === "day" && (
@@ -312,6 +340,7 @@ export function CalendarView({
             events={events}
             onSlotClick={(s, e) => openNew(s, e)}
             onEventClick={openEdit}
+            onEventDrop={handleEventDrop}
           />
         )}
         {view === "agenda" && (

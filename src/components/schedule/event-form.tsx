@@ -566,22 +566,22 @@ export function EventForm({
                       disabled={isReadOnly}
                       value={r.method}
                       onChange={(e) => updateReminder(idx, { method: e.target.value as "popup" | "email" })}
-                      className="rounded-lg border border-white/10 bg-white/[0.02] px-2 py-1 text-xs text-white"
+                      className="rounded-lg border border-white/10 bg-neutral-900 px-2 py-1 text-xs text-white"
                     >
-                      <option value="popup">Notification</option>
-                      <option value="email">Email</option>
+                      <option value="popup" className="bg-neutral-900 text-white">Notification</option>
+                      <option value="email" className="bg-neutral-900 text-white">Email</option>
                     </select>
                     <select
                       disabled={isReadOnly}
                       value={r.minutes}
                       onChange={(e) => updateReminder(idx, { minutes: Number(e.target.value) })}
-                      className="flex-1 rounded-lg border border-white/10 bg-white/[0.02] px-2 py-1 text-xs text-white"
+                      className="flex-1 rounded-lg border border-white/10 bg-neutral-900 px-2 py-1 text-xs text-white"
                     >
                       {!REMINDER_PRESETS.some((p) => p.minutes === r.minutes) && (
-                        <option value={r.minutes}>{r.minutes} min before (custom)</option>
+                        <option value={r.minutes} className="bg-neutral-900 text-white">{r.minutes} min before (custom)</option>
                       )}
                       {REMINDER_PRESETS.map((p) => (
-                        <option key={p.minutes} value={p.minutes}>{p.label}</option>
+                        <option key={p.minutes} value={p.minutes} className="bg-neutral-900 text-white">{p.label}</option>
                       ))}
                     </select>
                     <button
