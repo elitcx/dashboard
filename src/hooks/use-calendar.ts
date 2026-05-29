@@ -161,6 +161,7 @@ type EventPatchInput = { id: string; calendarId: string } & Partial<
 
 export function useUpdateEvent() {
   const qc = useQueryClient();
+  type EvData = { events: CalendarEvent[]; connected: boolean };
   return useMutation({
     mutationFn: ({ id, ...patch }: EventPatchInput) =>
       fetchJson<{ event: CalendarEvent }>(`/api/calendar/events/${id}`, {
@@ -168,7 +169,36 @@ export function useUpdateEvent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
       }),
-    onSuccess: () => {
+    onMutate: async (patch) => {
+      await qc.cancelQueries({ queryKey: ["calendar", "events"] });
+      const snapshot = qc.getQueriesData<EvData>({ queryKey: ["calendar", "events"] });
+      qc.setQueriesData<EvData>({ queryKey: ["calendar", "events"] }, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          events: old.events.map((ev) =>
+            ev.id === patch.id
+              ? {
+                  ...ev,
+                  ...(patch.start != null && { start: patch.start }),
+                  ...(patch.end != null && { end: patch.end }),
+                  ...(patch.title != null && { title: patch.title }),
+                  ...(patch.description != null && { description: patch.description }),
+                  ...(patch.location != null && { location: patch.location }),
+                  ...(patch.allDay != null && { allDay: patch.allDay }),
+                }
+              : ev,
+          ),
+        };
+      });
+      return { snapshot };
+    },
+    onError: (_err, _vars, ctx) => {
+      for (const [key, data] of ctx?.snapshot ?? []) {
+        qc.setQueryData(key, data);
+      }
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ["calendar", "events"] });
     },
   });

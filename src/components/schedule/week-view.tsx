@@ -75,6 +75,9 @@ export function WeekView({ date, events, onSlotClick, onEventClick, onEventDrop 
     endMin: number;
   } | null>(null);
 
+  // Set to true in onUp when a real drag occurred; consumed in the subsequent onClick to suppress edit panel
+  const didJustDragRef = useRef(false);
+
   // Event drag-to-move / drag-to-resize state
   const eventDragLiveRef = useRef<{
     event: CalendarEvent;
@@ -184,6 +187,7 @@ export function WeekView({ date, events, onSlotClick, onEventClick, onEventDrop 
       document.body.style.cursor = "";
 
       const live = eventDragLiveRef.current;
+      if (live?.hasDragged) didJustDragRef.current = true;
       eventDragLiveRef.current = null;
       setEventDrag(null);
 
@@ -429,7 +433,8 @@ export function WeekView({ date, events, onSlotClick, onEventClick, onEventDrop 
                     data-event="true"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (!eventDragLiveRef.current?.hasDragged) onEventClick(event);
+                      if (didJustDragRef.current) { didJustDragRef.current = false; return; }
+                      onEventClick(event);
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); onEventClick(event); }
