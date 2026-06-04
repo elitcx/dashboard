@@ -156,6 +156,7 @@ export type CalendarEvent = {
   reminders: EventReminder[];
   remindersUseDefault: boolean;
   recurringEventId?: string;
+  recurrence?: string[];
   readOnly: boolean;
   attendees?: { email: string; displayName?: string; responseStatus?: string }[];
 };
@@ -216,6 +217,7 @@ export function normalizeEvent(
     reminders,
     remindersUseDefault,
     recurringEventId: ev.recurringEventId ?? undefined,
+    recurrence: ev.recurrence ?? undefined,
     readOnly: cal?.accessRole === "reader" || cal?.accessRole === "freeBusyReader",
     attendees:
       ev.attendees?.map((a) => ({

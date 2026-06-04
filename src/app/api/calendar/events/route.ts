@@ -119,6 +119,7 @@ const createEventSchema = z.object({
   reminders: z.array(reminderSchema).max(5).optional(),
   useDefaultReminders: z.boolean().optional(),
   addMeet: z.boolean().optional(),
+  recurrence: z.array(z.string()).max(5).optional(),
 });
 
 export async function POST(req: Request) {
@@ -153,6 +154,7 @@ export async function POST(req: Request) {
       reminders,
       useDefaultReminders,
       addMeet,
+      recurrence,
     } = parsed.data;
 
     const requestBody: Record<string, unknown> = {
@@ -168,6 +170,7 @@ export async function POST(req: Request) {
     };
 
     if (colorId) requestBody.colorId = colorId;
+    if (recurrence && recurrence.length > 0) requestBody.recurrence = recurrence;
 
     if (useDefaultReminders) {
       requestBody.reminders = { useDefault: true };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Bell, Check, ExternalLink, MapPin, Plus, Trash2, Video, X } from "lucide-react";
+import { Bell, Check, ExternalLink, MapPin, Plus, RefreshCw, Trash2, Video, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,7 @@ import {
   useCalendarList,
   useCreateEvent,
   useDeleteEvent,
+  useGetEvent,
   useUpdateEvent,
 } from "@/hooks/use-calendar";
 import type {
@@ -109,6 +110,124 @@ const COLOR_OPTIONS: ColorOption[] = [
   { id: "11", name: "Tomato",    bg: "#D50000" },
 ];
 
+// ── Recurrence helpers ────────────────────────────────────────────────────────
+const DAYS_OF_WEEK = [
+  { key: "SU", label: "S", full: "Sunday" },
+  { key: "MO", label: "M", full: "Monday" },
+  { key: "TU", label: "T", full: "Tuesday" },
+  { key: "WE", label: "W", full: "Wednesday" },
+  { key: "TH", label: "T", full: "Thursday" },
+  { key: "FR", label: "F", full: "Friday" },
+  { key: "SA", label: "S", full: "Saturday" },
+];
+
+function getDefaultWeekday(dateStr: string): string {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "MO";
+  return ["SU", "MO", "TU", "WE", "TH", "FR", "SA"][d.getDay()];
+}
+
+function getDayLabel(dateStr: string): string {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "day";
+  return d.toLocaleDateString("en-US", { weekday: "long" });
+}
+
+function buildRRule(
+  preset: string,
+  start: string,
+  customInterval: number,
+  customFreq: string,
+  customDays: string[],
+  customEndType: string,
+  customEndDate: string,
+  customEndCount: number,
+): string | null {
+  if (preset === "none") return null;
+  if (preset === "daily") return "RRULE:FREQ=DAILY";
+  if (preset === "weekdays") return "RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR";
+  if (preset === "monthly") return "RRULE:FREQ=MONTHLY";
+  if (preset === "annually") return "RRULE:FREQ=YEARLY";
+  if (preset === "weekly") {
+    const day = getDefaultWeekday(start);
+    return `RRULE:FREQ=WEEKLY;BYDAY=${day}`;
+  }
+  if (preset === "custom") {
+    let rule = `RRULE:FREQ=${customFreq}`;
+    if (customInterval > 1) rule += `;INTERVAL=${customInterval}`;
+    if (customFreq === "WEEKLY" && customDays.length > 0) {
+      rule += `;BYDAY=${customDays.join(",")}`;
+    }
+    if (customEndType === "count" && customEndCount > 0) {
+      rule += `;COUNT=${customEndCount}`;
+    } else if (customEndType === "date" && customEndDate) {
+      const until = new Date(customEndDate + "T23:59:59Z");
+      const y = until.getUTCFullYear();
+      const mo = String(until.getUTCMonth() + 1).padStart(2, "0");
+      const d = String(until.getUTCDate()).padStart(2, "0");
+      rule += `;UNTIL=${y}${mo}${d}T235959Z`;
+    }
+    return rule;
+  }
+  return null;
+}
+
+type RRuleParsed = {
+  preset: string;
+  customFreq: "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  customInterval: number;
+  customDays: string[];
+  customEndType: "never" | "date" | "count";
+  customEndDate: string;
+  customEndCount: number;
+};
+
+function parseRRule(rruleStr: string): RRuleParsed {
+  const rule = rruleStr.replace(/^RRULE:/, "");
+  const parts: Record<string, string> = {};
+  rule.split(";").forEach((part) => {
+    const eq = part.indexOf("=");
+    if (eq !== -1) parts[part.slice(0, eq)] = part.slice(eq + 1);
+  });
+
+  const freq = (parts.FREQ ?? "WEEKLY") as "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+  const interval = parseInt(parts.INTERVAL ?? "1") || 1;
+  const byday = parts.BYDAY ? parts.BYDAY.split(",") : [];
+
+  let customEndType: "never" | "date" | "count" = "never";
+  let customEndDate = "";
+  let customEndCount = 10;
+  if (parts.COUNT) {
+    customEndType = "count";
+    customEndCount = parseInt(parts.COUNT) || 10;
+  } else if (parts.UNTIL) {
+    customEndType = "date";
+    const u = parts.UNTIL;
+    customEndDate = `${u.slice(0, 4)}-${u.slice(4, 6)}-${u.slice(6, 8)}`;
+  }
+
+  const weekdaySet = new Set(byday);
+  const isWeekdays =
+    freq === "WEEKLY" &&
+    weekdaySet.size === 5 &&
+    ["MO", "TU", "WE", "TH", "FR"].every((d) => weekdaySet.has(d));
+
+  let preset = "custom";
+  if (freq === "DAILY" && interval === 1 && byday.length === 0 && customEndType === "never") {
+    preset = "daily";
+  } else if (isWeekdays && interval === 1 && customEndType === "never") {
+    preset = "weekdays";
+  } else if (freq === "WEEKLY" && interval === 1 && byday.length <= 1 && customEndType === "never") {
+    preset = "weekly";
+  } else if (freq === "MONTHLY" && interval === 1 && byday.length === 0 && customEndType === "never") {
+    preset = "monthly";
+  } else if (freq === "YEARLY" && interval === 1 && customEndType === "never") {
+    preset = "annually";
+  }
+
+  return { preset, customFreq: freq, customInterval: interval, customDays: byday, customEndType, customEndDate, customEndCount };
+}
+
 const REMINDER_PRESETS = [
   { label: "At time of event",  minutes: 0    },
   { label: "5 minutes before",  minutes: 5    },
@@ -132,6 +251,10 @@ export function EventForm({
   const update = useUpdateEvent();
   const del    = useDeleteEvent();
   const { data: calData } = useCalendarList();
+  const { data: masterData } = useGetEvent(
+    event?.recurringEventId,
+    event?.calendarId,
+  );
 
   const writableCalendars = useMemo(
     () => (calData?.calendars ?? []).filter(
@@ -155,6 +278,14 @@ export function EventForm({
   const [useDefaultReminders, setUseDefaultReminders] = useState(true);
   const [addMeet, setAddMeet]             = useState(false);
   const [error, setError]                 = useState<string | null>(null);
+  const [recurrencePreset, setRecurrencePreset] = useState<string>("none");
+  const [customFreq, setCustomFreq]             = useState<"DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY">("WEEKLY");
+  const [customInterval, setCustomInterval]     = useState(1);
+  const [customDays, setCustomDays]             = useState<string[]>([]);
+  const [customEndType, setCustomEndType]       = useState<"never" | "date" | "count">("never");
+  const [customEndDate, setCustomEndDate]       = useState("");
+  const [customEndCount, setCustomEndCount]     = useState(10);
+  const [scopeDialog, setScopeDialog]           = useState<"edit" | "delete" | null>(null);
 
   // Sync end when start changes while in duration mode
   useEffect(() => {
@@ -167,6 +298,28 @@ export function EventForm({
     if (!open) return;
     setError(null);
     setEndMode("time");
+    setScopeDialog(null);
+
+    // Populate recurrence from master event if available, otherwise reset
+    const rruleStr = masterData?.event?.recurrence?.[0] ?? event?.recurrence?.[0];
+    if (rruleStr) {
+      const parsed = parseRRule(rruleStr);
+      setRecurrencePreset(parsed.preset);
+      setCustomFreq(parsed.customFreq);
+      setCustomInterval(parsed.customInterval);
+      setCustomDays(parsed.customDays);
+      setCustomEndType(parsed.customEndType);
+      setCustomEndDate(parsed.customEndDate);
+      setCustomEndCount(parsed.customEndCount);
+    } else {
+      setRecurrencePreset("none");
+      setCustomFreq("WEEKLY");
+      setCustomInterval(1);
+      setCustomDays([]);
+      setCustomEndType("never");
+      setCustomEndDate("");
+      setCustomEndCount(10);
+    }
 
     if (event) {
       setCalendarId(event.calendarId || "primary");
@@ -214,7 +367,7 @@ export function EventForm({
       setUseDefaultReminders(true);
       setAddMeet(false);
     }
-  }, [open, event, defaultDate, defaultEndDate, writableCalendars]);
+  }, [open, event, defaultDate, defaultEndDate, writableCalendars, masterData]);
 
   const isReadOnly  = Boolean(event?.readOnly);
   const selectedCal = useMemo(
@@ -247,6 +400,16 @@ export function EventForm({
     setError(null);
     if (!title.trim()) { setError("Title is required."); return; }
 
+    if (event?.recurringEventId) {
+      setScopeDialog("edit");
+      return;
+    }
+    await executeSubmit("this");
+  }
+
+  async function executeSubmit(scope: "this" | "all") {
+    setScopeDialog(null);
+    setError(null);
     const startIso = allDay ? `${start}T00:00:00` : new Date(start).toISOString();
     const endIso   = allDay ? `${end}T00:00:00`   : new Date(end).toISOString();
     const basePayload = {
@@ -258,11 +421,16 @@ export function EventForm({
       useDefaultReminders,
     };
 
+    const rrule = buildRRule(recurrencePreset, start, customInterval, customFreq, customDays, customEndType, customEndDate, customEndCount);
+
     try {
       if (event) {
-        await update.mutateAsync({ id: event.id, ...basePayload, colorId: colorId ?? null });
+        const eventId = scope === "all" ? (event.recurringEventId ?? event.id) : event.id;
+        // Only send recurrence when editing all events (master event accepts it; instances don't)
+        const recurrence = scope === "all" ? (rrule ? [rrule] : []) : undefined;
+        await update.mutateAsync({ id: eventId, ...basePayload, colorId: colorId ?? null, recurrence });
       } else {
-        await create.mutateAsync({ ...basePayload, colorId, addMeet });
+        await create.mutateAsync({ ...basePayload, colorId, addMeet, recurrence: rrule ? [rrule] : undefined });
       }
       onOpenChange(false);
     } catch (err) {
@@ -272,9 +440,19 @@ export function EventForm({
 
   async function onDelete() {
     if (!event) return;
-    if (!confirm("Delete this event from Google Calendar?")) return;
+    if (event.recurringEventId) {
+      setScopeDialog("delete");
+      return;
+    }
+    await executeDelete("this");
+  }
+
+  async function executeDelete(scope: "this" | "all") {
+    setScopeDialog(null);
+    if (!event) return;
+    const eventId = scope === "all" ? (event.recurringEventId ?? event.id) : event.id;
     try {
-      await del.mutateAsync({ id: event.id, calendarId: event.calendarId });
+      await del.mutateAsync({ id: eventId, calendarId: event.calendarId });
       onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete.");
@@ -415,6 +593,156 @@ export function EventForm({
               )}
             </div>
           </div>
+
+          {/* Recurrence */}
+          {!isReadOnly && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                <RefreshCw className="h-3.5 w-3.5" />
+                Repeat
+              </Label>
+              <select
+                value={recurrencePreset}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setRecurrencePreset(val);
+                  if (val === "custom" && customDays.length === 0 && start) {
+                    setCustomDays([getDefaultWeekday(start)]);
+                  }
+                }}
+                className="w-full rounded-2xl border border-white/10 bg-neutral-900 px-4 py-2.5 text-sm text-white focus:outline-none"
+              >
+                <option value="none">Does not repeat</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly on {getDayLabel(start)}</option>
+                <option value="weekdays">Every weekday (Mon to Fri)</option>
+                <option value="monthly">Monthly</option>
+                <option value="annually">Annually</option>
+                <option value="custom">Custom…</option>
+              </select>
+
+              {recurrencePreset === "custom" && (
+                <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3">
+                  {/* Repeat every N [freq] */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Repeat every</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={customInterval}
+                      onChange={(e) => setCustomInterval(Math.max(1, Math.min(99, parseInt(e.target.value) || 1)))}
+                      className="w-14 rounded-lg border border-white/10 bg-neutral-900 px-2 py-1 text-center text-sm text-white focus:outline-none"
+                    />
+                    <select
+                      value={customFreq}
+                      onChange={(e) => setCustomFreq(e.target.value as "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY")}
+                      className="rounded-lg border border-white/10 bg-neutral-900 px-2 py-1 text-sm text-white focus:outline-none"
+                    >
+                      <option value="DAILY">day{customInterval !== 1 ? "s" : ""}</option>
+                      <option value="WEEKLY">week{customInterval !== 1 ? "s" : ""}</option>
+                      <option value="MONTHLY">month{customInterval !== 1 ? "s" : ""}</option>
+                      <option value="YEARLY">year{customInterval !== 1 ? "s" : ""}</option>
+                    </select>
+                  </div>
+
+                  {/* Days of week (weekly only) */}
+                  {customFreq === "WEEKLY" && (
+                    <div className="space-y-1.5">
+                      <span className="text-xs text-muted-foreground">Repeat on</span>
+                      <div className="flex gap-1.5">
+                        {DAYS_OF_WEEK.map((day) => (
+                          <button
+                            key={day.key}
+                            type="button"
+                            title={day.full}
+                            onClick={() =>
+                              setCustomDays((prev) =>
+                                prev.includes(day.key)
+                                  ? prev.filter((d) => d !== day.key)
+                                  : [...prev, day.key],
+                              )
+                            }
+                            className={cn(
+                              "h-8 w-8 rounded-full text-xs font-medium transition-all",
+                              customDays.includes(day.key)
+                                ? "border border-emerald-500/50 bg-emerald-500/20 text-emerald-300"
+                                : "border border-white/10 text-muted-foreground hover:border-white/20 hover:text-white",
+                            )}
+                          >
+                            {day.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* End condition */}
+                  <div className="space-y-1.5">
+                    <span className="text-xs text-muted-foreground">Ends</span>
+                    <div className="space-y-1.5">
+                      <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                          type="radio"
+                          name="endType"
+                          value="never"
+                          checked={customEndType === "never"}
+                          onChange={() => setCustomEndType("never")}
+                          className="accent-emerald-500"
+                        />
+                        <span className="text-sm text-white">Never</span>
+                      </label>
+                      <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                          type="radio"
+                          name="endType"
+                          value="date"
+                          checked={customEndType === "date"}
+                          onChange={() => setCustomEndType("date")}
+                          className="accent-emerald-500"
+                        />
+                        <span className="text-sm text-white">On</span>
+                        {customEndType === "date" && (
+                          <input
+                            type="date"
+                            value={customEndDate}
+                            onChange={(e) => setCustomEndDate(e.target.value)}
+                            className="rounded-lg border border-white/10 bg-neutral-900 px-2 py-1 text-sm text-white focus:outline-none"
+                          />
+                        )}
+                      </label>
+                      <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                          type="radio"
+                          name="endType"
+                          value="count"
+                          checked={customEndType === "count"}
+                          onChange={() => setCustomEndType("count")}
+                          className="accent-emerald-500"
+                        />
+                        <span className="text-sm text-white">After</span>
+                        {customEndType === "count" && (
+                          <>
+                            <input
+                              type="number"
+                              min={1}
+                              max={999}
+                              value={customEndCount}
+                              onChange={(e) =>
+                                setCustomEndCount(Math.max(1, Math.min(999, parseInt(e.target.value) || 1)))
+                              }
+                              className="w-16 rounded-lg border border-white/10 bg-neutral-900 px-2 py-1 text-center text-sm text-white focus:outline-none"
+                            />
+                            <span className="text-sm text-white">occurrences</span>
+                          </>
+                        )}
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Calendar picker */}
           {writableCalendars.length > 0 && (
@@ -630,32 +958,68 @@ export function EventForm({
             </div>
           )}
 
-          <div className="!mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-            {event && !isReadOnly ? (
-              <Button
+          {scopeDialog !== null ? (
+            <div className="!mt-6 space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-sm font-medium text-white">
+                {scopeDialog === "delete" ? "Delete recurring event" : "Edit recurring event"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {scopeDialog === "delete"
+                  ? "Which events do you want to delete?"
+                  : "Which events do you want to edit?"}
+              </p>
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => scopeDialog === "delete" ? executeDelete("this") : executeSubmit("this")}
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2.5 text-left text-sm text-white transition-colors hover:bg-white/[0.06]"
+                >
+                  This event
+                </button>
+                <button
+                  type="button"
+                  onClick={() => scopeDialog === "delete" ? executeDelete("all") : executeSubmit("all")}
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2.5 text-left text-sm text-white transition-colors hover:bg-white/[0.06]"
+                >
+                  All events
+                </button>
+              </div>
+              <button
                 type="button"
-                variant="ghost"
-                size="sm"
-                onClick={onDelete}
-                className="self-start text-red-300/80 hover:text-red-300"
+                onClick={() => setScopeDialog(null)}
+                className="text-xs text-muted-foreground transition-colors hover:text-white"
               >
-                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                Delete
-              </Button>
-            ) : (
-              <div className="hidden sm:block" />
-            )}
-            <div className="flex gap-2 sm:ml-auto">
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="flex-1 sm:flex-initial">
-                {isReadOnly ? "Close" : "Cancel"}
-              </Button>
-              {!isReadOnly && (
-                <Button type="submit" disabled={isPending} className="flex-1 sm:flex-initial">
-                  {isPending ? "Saving…" : event ? "Save" : "Create"}
-                </Button>
-              )}
+                Cancel
+              </button>
             </div>
-          </div>
+          ) : (
+            <div className="!mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+              {event && !isReadOnly ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={onDelete}
+                  className="self-start text-red-300/80 hover:text-red-300"
+                >
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                  Delete
+                </Button>
+              ) : (
+                <div className="hidden sm:block" />
+              )}
+              <div className="flex gap-2 sm:ml-auto">
+                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="flex-1 sm:flex-initial">
+                  {isReadOnly ? "Close" : "Cancel"}
+                </Button>
+                {!isReadOnly && (
+                  <Button type="submit" disabled={isPending} className="flex-1 sm:flex-initial">
+                    {isPending ? "Saving…" : event ? "Save" : "Create"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </form>
       </DialogContent>
     </Dialog>

@@ -7,6 +7,44 @@ import {
   normalizeEvent,
 } from "@/lib/google-calendar";
 
+export async function GET(
+  req: Request,
+  { params }: { params: { id: string } },
+) {
+  try {
+    const user = await requireUser();
+    const { searchParams } = new URL(req.url);
+    const calendarId = searchParams.get("calendarId") ?? "primary";
+
+    const calendar = await getGoogleCalendarClient(user.id);
+    if (!calendar) {
+      return NextResponse.json({ error: "Google Calendar not connected" }, { status: 412 });
+    }
+
+    const res = await calendar.events.get({ calendarId, eventId: params.id });
+
+    const list = await calendar.calendarList.list({ maxResults: 250 });
+    const meta = (list.data.items ?? [])
+      .map(normalizeCalendarListEntry)
+      .find((c) => c.id === calendarId);
+
+    return NextResponse.json({
+      event: normalizeEvent(res.data, {
+        id: calendarId,
+        name: meta?.name,
+        color: meta?.backgroundColor,
+        accessRole: meta?.accessRole,
+      }),
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Server error";
+    if (msg === "UNAUTHORIZED")
+      return NextResponse.json({ error: msg }, { status: 401 });
+    console.error("GET /api/calendar/events/[id]:", err);
+    return NextResponse.json({ error: "Failed to fetch event" }, { status: 500 });
+  }
+}
+
 const reminderSchema = z.object({
   method: z.enum(["popup", "email"]),
   minutes: z.number().int().min(0).max(40320),
@@ -23,6 +61,7 @@ const updateEventSchema = z.object({
   colorId: z.string().nullable().optional(),
   reminders: z.array(reminderSchema).max(5).optional(),
   useDefaultReminders: z.boolean().optional(),
+  recurrence: z.array(z.string()).max(5).optional().nullable(),
 });
 
 export async function PATCH(
@@ -59,6 +98,7 @@ export async function PATCH(
       colorId,
       reminders,
       useDefaultReminders,
+      recurrence,
     } = parsed.data;
 
     const requestBody: Record<string, unknown> = {};
@@ -83,6 +123,9 @@ export async function PATCH(
       requestBody.reminders = { useDefault: true };
     } else if (reminders) {
       requestBody.reminders = { useDefault: false, overrides: reminders };
+    }
+    if (recurrence !== undefined) {
+      requestBody.recurrence = recurrence ?? [];
     }
 
     const res = await calendar.events.patch({

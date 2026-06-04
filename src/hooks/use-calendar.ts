@@ -138,6 +138,7 @@ type EventInput = {
   reminders?: EventReminder[];
   useDefaultReminders?: boolean;
   addMeet?: boolean;
+  recurrence?: string[];
 };
 
 export function useCreateEvent() {
@@ -152,6 +153,18 @@ export function useCreateEvent() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["calendar", "events"] });
     },
+  });
+}
+
+export function useGetEvent(id: string | undefined, calendarId: string | undefined) {
+  return useQuery({
+    queryKey: ["calendar", "event", id, calendarId],
+    queryFn: () =>
+      fetchJson<{ event: CalendarEvent }>(
+        `/api/calendar/events/${id}?calendarId=${encodeURIComponent(calendarId ?? "primary")}`,
+      ),
+    enabled: Boolean(id && calendarId),
+    staleTime: 30_000,
   });
 }
 
