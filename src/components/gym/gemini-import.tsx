@@ -1,36 +1,27 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Sparkles, Trash2, Plus, ChevronRight, Copy, Check } from "lucide-react";
+import { Sparkles, Trash2, Plus, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { useParseGemini, useCreateWorkout } from "@/hooks/use-gym";
-import { GEMINI_FORMAT_PROMPT } from "@/lib/gym-parser";
 import type { ParsedWorkout, ParsedSet } from "@/lib/gym-parser";
 
 const DAY_TYPES = ["PUSH", "PULL", "UPPER", "LOWER", "FULL_BODY", "CARDIO", "OTHER"] as const;
 
-const EXAMPLE_TEXT = `### May 20, 2026 — Gym Log (Short Upper/Lower)
-*Felt pretty tired today, kept it brief.*
+const EXAMPLE_TEXT = `June 8 push day
+felt a bit tired but pushed through
 
-#### **Strength Training**
-* **Pull-ups**
-    * Set 1: Bodyweight × 9 reps
-    * Set 2: Bodyweight × 9 reps
-    * Set 3: Bodyweight × 8 reps
-* **Incline Bench Press**
-    * Set 1: 10 kg × 12 reps
-    * Set 2: 10 kg × 12 reps
-    * Set 3: 12.5 kg × 8 reps
+bench press 3x8 @ 80kg
+incline db press 3x10 @ 22.5kg
+cable fly 3x12 @ 15kg
+tricep pushdown 3x12 @ 32.5kg
+lateral raises 3x15 @ 8kg
 
-#### **Cardio**
-* **Incline Walk**
-    * Incline: 12
-    * Speed: 3.0
-    * Duration: 30 min`;
+30 min incline walk`;
 
 function isCardioSet(s: ParsedSet) {
   return s.reps == null && s.weight == null;
@@ -40,13 +31,6 @@ export function GeminiImportPanel({ onSaved }: { onSaved?: () => void }) {
   const [text, setText] = useState("");
   const [parsed, setParsed] = useState<ParsedWorkout | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [promptCopied, setPromptCopied] = useState(false);
-
-  async function copyPrompt() {
-    await navigator.clipboard.writeText(GEMINI_FORMAT_PROMPT);
-    setPromptCopied(true);
-    setTimeout(() => setPromptCopied(false), 2000);
-  }
 
   const parseMut = useParseGemini();
   const createMut = useCreateWorkout();
@@ -57,7 +41,7 @@ export function GeminiImportPanel({ onSaved }: { onSaved?: () => void }) {
     try {
       const res = await parseMut.mutateAsync(text);
       if (res.parsed.exercises.length === 0) {
-        setError("Couldn't find any exercises. Paste the full Gemini workout markdown.");
+        setError("Couldn't find any exercises. Try adding more detail to your notes.");
         setParsed(null);
         return;
       }
@@ -151,20 +135,12 @@ export function GeminiImportPanel({ onSaved }: { onSaved?: () => void }) {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 ring-1 ring-emerald-500/20">
             <Sparkles className="h-4 w-4 text-emerald-400" strokeWidth={1.75} />
           </div>
-          <div className="flex-1">
+          <div>
             <h3 className="text-base font-medium text-white">Quick Import</h3>
             <p className="text-xs text-muted-foreground">
-              Paste a workout summary from Gemini
+              Paste your raw workout notes — Gemini will structure them for you
             </p>
           </div>
-          <button
-            onClick={copyPrompt}
-            title="Copy a formatting prompt to paste into Gemini before your workout log"
-            className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-emerald-500/30 hover:text-emerald-400"
-          >
-            {promptCopied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-            {promptCopied ? "Copied!" : "Copy prompt"}
-          </button>
         </div>
 
         <textarea
@@ -189,7 +165,7 @@ export function GeminiImportPanel({ onSaved }: { onSaved?: () => void }) {
             Use example
           </button>
           <Button onClick={onParse} disabled={!text.trim() || parseMut.isPending} className="gap-1.5">
-            {parseMut.isPending ? "Parsing..." : "Parse"}
+            {parseMut.isPending ? "Parsing..." : "Import"}
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
