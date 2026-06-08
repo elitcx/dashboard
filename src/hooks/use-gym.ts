@@ -107,6 +107,23 @@ export function useCreateWorkout() {
   });
 }
 
+type UpdateWorkoutInput = CreateWorkoutInput & { id: string };
+
+export function useUpdateWorkout() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...input }: UpdateWorkoutInput) =>
+      fetchJson<{ workout: Workout }>(`/api/gym/workouts/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gym"] });
+    },
+  });
+}
+
 export function useDeleteWorkout() {
   const qc = useQueryClient();
   return useMutation({
