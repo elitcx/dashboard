@@ -139,11 +139,11 @@ export function useDeleteWorkout() {
 
 export function useParseGemini() {
   return useMutation({
-    mutationFn: (text: string) =>
+    mutationFn: ({ text, exerciseNames }: { text: string; exerciseNames?: string[] }) =>
       fetchJson<{ parsed: ParsedWorkout }>("/api/gym/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, exerciseNames }),
       }),
   });
 }

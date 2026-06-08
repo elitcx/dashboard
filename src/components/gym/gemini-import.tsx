@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
-import { useParseGemini, useCreateWorkout } from "@/hooks/use-gym";
+import { useParseGemini, useCreateWorkout, useExercises } from "@/hooks/use-gym";
 import type { ParsedWorkout, ParsedSet } from "@/lib/gym-parser";
 
 const DAY_TYPES = ["PUSH", "PULL", "UPPER", "LOWER", "FULL_BODY", "CARDIO", "OTHER"] as const;
@@ -34,12 +34,14 @@ export function GeminiImportPanel({ onSaved }: { onSaved?: () => void }) {
 
   const parseMut = useParseGemini();
   const createMut = useCreateWorkout();
+  const { data: exData } = useExercises();
+  const exerciseNames = exData?.exercises.map((e) => e.name) ?? [];
 
   async function onParse() {
     if (!text.trim()) return;
     setError(null);
     try {
-      const res = await parseMut.mutateAsync(text);
+      const res = await parseMut.mutateAsync({ text, exerciseNames });
       if (res.parsed.exercises.length === 0) {
         setError("Couldn't find any exercises. Try adding more detail to your notes.");
         setParsed(null);

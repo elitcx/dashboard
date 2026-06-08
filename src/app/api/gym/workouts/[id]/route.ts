@@ -97,6 +97,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       });
     });
 
+    // Clean up exercises that no longer have any sets (e.g. after a rename)
+    await prisma.exercise.deleteMany({
+      where: { userId: user.id, workoutSets: { none: {} } },
+    });
+
     return NextResponse.json({ workout });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Server error";
