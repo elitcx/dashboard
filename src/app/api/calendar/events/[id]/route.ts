@@ -58,6 +58,7 @@ const updateEventSchema = z.object({
   start: z.string().optional(),
   end: z.string().optional(),
   allDay: z.boolean().optional(),
+  timeZone: z.string().max(100).optional(),
   colorId: z.string().nullable().optional(),
   reminders: z.array(reminderSchema).max(5).optional(),
   useDefaultReminders: z.boolean().optional(),
@@ -95,6 +96,7 @@ export async function PATCH(
       start,
       end,
       allDay,
+      timeZone,
       colorId,
       reminders,
       useDefaultReminders,
@@ -108,12 +110,12 @@ export async function PATCH(
     if (start !== undefined) {
       requestBody.start = allDay
         ? { date: start.slice(0, 10) }
-        : { dateTime: new Date(start).toISOString() };
+        : { dateTime: new Date(start).toISOString(), ...(timeZone && { timeZone }) };
     }
     if (end !== undefined) {
       requestBody.end = allDay
         ? { date: end.slice(0, 10) }
-        : { dateTime: new Date(end).toISOString() };
+        : { dateTime: new Date(end).toISOString(), ...(timeZone && { timeZone }) };
     }
     if (colorId !== undefined) {
       // null means "clear" → omit colorId, which falls back to calendar color

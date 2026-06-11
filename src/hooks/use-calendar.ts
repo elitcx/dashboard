@@ -134,6 +134,7 @@ type EventInput = {
   start: string;
   end: string;
   allDay?: boolean;
+  timeZone?: string;
   colorId?: string;
   reminders?: EventReminder[];
   useDefaultReminders?: boolean;

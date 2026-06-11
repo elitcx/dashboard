@@ -115,6 +115,7 @@ const createEventSchema = z.object({
   start: z.string(),
   end: z.string(),
   allDay: z.boolean().default(false),
+  timeZone: z.string().max(100).optional(),
   colorId: z.string().optional(),
   reminders: z.array(reminderSchema).max(5).optional(),
   useDefaultReminders: z.boolean().optional(),
@@ -150,6 +151,7 @@ export async function POST(req: Request) {
       start,
       end,
       allDay,
+      timeZone,
       colorId,
       reminders,
       useDefaultReminders,
@@ -157,16 +159,18 @@ export async function POST(req: Request) {
       recurrence,
     } = parsed.data;
 
+    // Google requires an explicit IANA time zone on timed recurring events;
+    // include it on all timed events so recurrence expansion is unambiguous.
     const requestBody: Record<string, unknown> = {
       summary: title,
       description,
       location,
       start: allDay
         ? { date: start.slice(0, 10) }
-        : { dateTime: new Date(start).toISOString() },
+        : { dateTime: new Date(start).toISOString(), ...(timeZone && { timeZone }) },
       end: allDay
         ? { date: end.slice(0, 10) }
-        : { dateTime: new Date(end).toISOString() },
+        : { dateTime: new Date(end).toISOString(), ...(timeZone && { timeZone }) },
     };
 
     if (colorId) requestBody.colorId = colorId;

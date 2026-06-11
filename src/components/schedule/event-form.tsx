@@ -412,11 +412,12 @@ export function EventForm({
     setError(null);
     const startIso = allDay ? `${start}T00:00:00` : new Date(start).toISOString();
     const endIso   = allDay ? `${end}T00:00:00`   : new Date(end).toISOString();
+    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const basePayload = {
       calendarId, title,
       description: description || undefined,
       location:    location    || undefined,
-      start: startIso, end: endIso, allDay,
+      start: startIso, end: endIso, allDay, timeZone,
       reminders: useDefaultReminders ? undefined : reminders,
       useDefaultReminders,
     };
