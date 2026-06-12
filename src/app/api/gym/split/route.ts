@@ -51,10 +51,14 @@ export async function PUT(req: Request) {
     }
     const { days } = parsed.data;
 
-    await prisma.$transaction(async (tx) => {
-      await tx.workoutSplitDay.deleteMany({ where: { userId: user.id } });
-      for (const day of days) {
-        await tx.workoutSplitDay.create({
+    // Batch-array transaction (single round-trip) rather than an interactive
+    // one — replacing the whole split is many ops, and holding an interactive
+    // transaction open across them blows past Prisma's 5s timeout when each
+    // round-trip carries serverless→Neon latency.
+    await prisma.$transaction([
+      prisma.workoutSplitDay.deleteMany({ where: { userId: user.id } }),
+      ...days.map((day) =>
+        prisma.workoutSplitDay.create({
           data: {
             userId: user.id,
             weekday: day.weekday,
@@ -70,9 +74,9 @@ export async function PUT(req: Request) {
               })),
             },
           },
-        });
-      }
-    });
+        }),
+      ),
+    ]);
 
     const updated = await prisma.workoutSplitDay.findMany({
       where: { userId: user.id },
