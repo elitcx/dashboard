@@ -7,18 +7,24 @@ import { GeminiImportPanel } from "@/components/gym/gemini-import";
 import { WorkoutLogger } from "@/components/gym/workout-logger";
 import { WorkoutHistory } from "@/components/gym/workout-history";
 import { ProgressChart } from "@/components/gym/progress-chart";
+import { TodayPanel } from "@/components/gym/today-panel";
+import { SplitEditor } from "@/components/gym/split-editor";
+import { ConsistencyCalendar } from "@/components/gym/consistency-calendar";
 
-type Tab = "import" | "log" | "history" | "progress";
+type Tab = "today" | "split" | "import" | "log" | "history" | "progress" | "calendar";
 
 const TABS: { id: Tab; label: string; shortLabel?: string }[] = [
+  { id: "today", label: "Today" },
+  { id: "split", label: "Split" },
   { id: "import", label: "Import" },
   { id: "log", label: "Log Workout", shortLabel: "Log" },
   { id: "history", label: "History" },
+  { id: "calendar", label: "Calendar" },
   { id: "progress", label: "Progress" },
 ];
 
 export default function GymPage() {
-  const [tab, setTab] = useState<Tab>("import");
+  const [tab, setTab] = useState<Tab>("today");
 
   return (
     <>
@@ -30,7 +36,7 @@ export default function GymPage() {
       >
         <h1 className="text-4xl font-medium tracking-tight text-white sm:text-5xl">Gym</h1>
         <p className="mt-2 text-base text-muted-foreground">
-          Paste a Gemini summary, log manually, or track your progress.
+          See today&apos;s plan, set your split, log workouts, and track consistency.
         </p>
       </motion.div>
 
@@ -60,9 +66,18 @@ export default function GymPage() {
         </div>
       </div>
 
+      {tab === "today" && (
+        <TodayPanel
+          onLog={() => setTab("log")}
+          onImport={() => setTab("import")}
+          onEditSplit={() => setTab("split")}
+        />
+      )}
+      {tab === "split" && <SplitEditor />}
       {tab === "import" && <GeminiImportPanel onSaved={() => setTab("history")} />}
       {tab === "log" && <WorkoutLogger onSaved={() => setTab("history")} />}
       {tab === "history" && <WorkoutHistory />}
+      {tab === "calendar" && <ConsistencyCalendar />}
       {tab === "progress" && <ProgressChart />}
     </>
   );

@@ -137,6 +137,70 @@ export function useDeleteWorkout() {
   });
 }
 
+// ─── Workout split (weekly plan) ──────────────────────────────────────
+
+export type SplitExercise = {
+  id: string;
+  name: string;
+  targetSets: number | null;
+  targetReps: string | null;
+  order: number;
+};
+
+export type SplitDay = {
+  id: string;
+  weekday: number; // 0=Sun .. 6=Sat
+  label: string;
+  dayType: ParsedWorkout["dayType"];
+  isRest: boolean;
+  exercises: SplitExercise[];
+};
+
+export type SplitDayInput = {
+  weekday: number;
+  label: string;
+  dayType: ParsedWorkout["dayType"];
+  isRest: boolean;
+  exercises: Array<{ name: string; targetSets?: number | null; targetReps?: string | null }>;
+};
+
+export function useSplit() {
+  return useQuery({
+    queryKey: ["gym", "split"],
+    queryFn: () => fetchJson<{ days: SplitDay[] }>("/api/gym/split"),
+  });
+}
+
+export function useUpdateSplit() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (days: SplitDayInput[]) =>
+      fetchJson<{ days: SplitDay[] }>("/api/gym/split", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ days }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["gym"] });
+    },
+  });
+}
+
+export type ConsistencyData = {
+  days: number;
+  since: string;
+  workoutDays: Array<{ date: string; dayType: string }>;
+  plannedWeekdays: number[];
+  hasSplit: boolean;
+};
+
+export function useConsistency(days = 365) {
+  return useQuery({
+    queryKey: ["gym", "consistency", days],
+    queryFn: () => fetchJson<ConsistencyData>(`/api/gym/consistency?days=${days}`),
+  });
+}
+
 export function useParseGemini() {
   return useMutation({
     mutationFn: ({ text, exerciseNames }: { text: string; exerciseNames?: string[] }) =>
