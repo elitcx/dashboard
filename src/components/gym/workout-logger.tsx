@@ -87,7 +87,7 @@ export function WorkoutLogger({ onSaved }: { onSaved?: () => void }) {
       return;
     }
 
-    const sets = validExercises.flatMap((ex) => {
+    const sets: { exerciseName: string; setNumber: number; reps: number | null; weight: number | null; duration: number | null; notes: string | null }[] = validExercises.flatMap((ex) => {
       if (ex.exType === "cardio") {
         return [{
           exerciseName: ex.name.trim(),
