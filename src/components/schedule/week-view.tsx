@@ -10,6 +10,7 @@ import {
   formatTime,
   layoutTimedEvents,
   minutesSinceMidnight,
+  startOfDay,
 } from "@/lib/calendar-utils";
 import type { CalendarEvent } from "@/lib/google-calendar";
 
@@ -208,8 +209,8 @@ export function WeekView({ date, events, onSlotClick, onEventClick, onEventDrop 
   const allDayEventsByDay = days.map((d) =>
     events.filter((e) => {
       if (!e.allDay) return false;
-      const start = new Date(e.start);
-      const end = new Date(e.end);
+      const start = startOfDay(new Date(e.start));
+      const end = startOfDay(new Date(e.end));
       return d >= start && d < end;
     }),
   );
