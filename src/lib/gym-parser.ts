@@ -313,6 +313,23 @@ function parseInlineLine(line: string): ParsedExercise | null {
       }
     }
   }
+
+  // Cardio: "Run 30 min" or "30 min run" or "incline walk 45min"
+  const cardioSuffix = cleaned.match(/^(.+?)\s+(\d+(?:\.\d+)?)\s*min(?:utes?)?\s*$/i);
+  if (cardioSuffix) {
+    const exName = cardioSuffix[1].trim().replace(/[:\-–—]+$/, "").trim();
+    const mins = parseFloat(cardioSuffix[2]);
+    if (exName.length > 0 && exName.length < 80 && mins > 0 && mins < 600)
+      return { name: exName, sets: [{ duration: Math.round(mins) }] };
+  }
+  const cardioPrefix = cleaned.match(/^(\d+(?:\.\d+)?)\s*min(?:utes?)?\s+(.+?)\s*$/i);
+  if (cardioPrefix) {
+    const mins = parseFloat(cardioPrefix[1]);
+    const exName = cardioPrefix[2].trim().replace(/[:\-–—]+$/, "").trim();
+    if (exName.length > 0 && exName.length < 80 && mins > 0 && mins < 600)
+      return { name: exName, sets: [{ duration: Math.round(mins) }] };
+  }
+
   return null;
 }
 

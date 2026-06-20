@@ -25,6 +25,7 @@ const TABS: { id: Tab; label: string; shortLabel?: string }[] = [
 
 export default function GymPage() {
   const [tab, setTab] = useState<Tab>("today");
+  const [importText, setImportText] = useState("");
 
   return (
     <>
@@ -74,7 +75,13 @@ export default function GymPage() {
         />
       )}
       {tab === "split" && <SplitEditor />}
-      {tab === "import" && <GeminiImportPanel onSaved={() => setTab("history")} />}
+      {tab === "import" && (
+        <GeminiImportPanel
+          text={importText}
+          onTextChange={setImportText}
+          onSaved={() => setTab("history")}
+        />
+      )}
       {tab === "log" && <WorkoutLogger onSaved={() => setTab("history")} />}
       {tab === "history" && <WorkoutHistory />}
       {tab === "calendar" && <ConsistencyCalendar />}

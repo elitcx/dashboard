@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import type { ParsedWorkout } from "@/lib/gym-parser";
 
 type LoggedSet = { reps: string; weight: string; duration: string };
-type LoggedExercise = { name: string; sets: LoggedSet[] };
+type LoggedExercise = { name: string; sets: LoggedSet[]; exType: "strength" | "cardio"; exNotes: string };
 
 const DAY_TYPES = ["PUSH", "PULL", "UPPER", "LOWER", "FULL_BODY", "CARDIO", "OTHER"] as const;
 
@@ -53,14 +53,20 @@ function workoutToForm(workout: Workout) {
     date: workout.date.slice(0, 10),
     dayType: workout.dayType as ParsedWorkout["dayType"],
     duration: workout.duration?.toString() ?? "",
-    exercises: grouped.map((g) => ({
-      name: g.name,
-      sets: g.sets.map((s) => ({
-        reps: s.reps?.toString() ?? "",
-        weight: s.weight?.toString() ?? "",
-        duration: s.duration?.toString() ?? "",
-      })),
-    })),
+    notes: workout.notes ?? "",
+    exercises: grouped.map((g) => {
+      const isCardio = g.sets.every((s) => s.reps == null && s.weight == null);
+      return {
+        name: g.name,
+        exType: (isCardio ? "cardio" : "strength") as "strength" | "cardio",
+        exNotes: g.sets[0]?.notes ?? "",
+        sets: g.sets.map((s) => ({
+          reps: s.reps?.toString() ?? "",
+          weight: s.weight?.toString() ?? "",
+          duration: s.duration?.toString() ?? "",
+        })),
+      };
+    }),
   };
 }
 
@@ -82,17 +88,18 @@ function WorkoutEditForm({
   const [date, setDate] = useState(initial.date);
   const [dayType, setDayType] = useState(initial.dayType);
   const [duration, setDuration] = useState(initial.duration);
+  const [notes, setNotes] = useState(initial.notes);
   const [loggedExercises, setLoggedExercises] = useState<LoggedExercise[]>(initial.exercises);
   const [error, setError] = useState<string | null>(null);
 
   function addExercise() {
-    setLoggedExercises([...loggedExercises, { name: "", sets: [{ reps: "", weight: "", duration: "" }] }]);
+    setLoggedExercises([...loggedExercises, { name: "", sets: [{ reps: "", weight: "", duration: "" }], exType: "strength", exNotes: "" }]);
   }
   function removeExercise(idx: number) {
     setLoggedExercises(loggedExercises.filter((_, i) => i !== idx));
   }
-  function updateExerciseName(idx: number, val: string) {
-    setLoggedExercises(loggedExercises.map((ex, i) => (i === idx ? { ...ex, name: val } : ex)));
+  function updateExercise(idx: number, patch: Partial<LoggedExercise>) {
+    setLoggedExercises(loggedExercises.map((ex, i) => (i === idx ? { ...ex, ...patch } : ex)));
   }
   function addSet(exIdx: number) {
     setLoggedExercises(
@@ -122,16 +129,29 @@ function WorkoutEditForm({
 
   async function onSubmit() {
     setError(null);
-    const validExercises = loggedExercises.filter(
-      (ex) => ex.name.trim() && ex.sets.some((s) => s.reps || s.weight || s.duration),
-    );
+    const validExercises = loggedExercises.filter((ex) => {
+      if (!ex.name.trim()) return false;
+      if (ex.exType === "cardio") return !!(ex.sets[0]?.duration) || !!ex.exNotes;
+      return ex.sets.some((s) => s.reps || s.weight || s.duration);
+    });
+
     if (validExercises.length === 0) {
-      setError("Add at least one exercise with sets.");
+      setError("Add at least one exercise with data.");
       return;
     }
 
-    const sets = validExercises.flatMap((ex) =>
-      ex.sets
+    const sets = validExercises.flatMap((ex) => {
+      if (ex.exType === "cardio") {
+        return [{
+          exerciseName: ex.name.trim(),
+          setNumber: 1,
+          reps: null,
+          weight: null,
+          duration: ex.sets[0]?.duration ? Number(ex.sets[0].duration) : null,
+          notes: ex.exNotes || null,
+        }];
+      }
+      return ex.sets
         .filter((s) => s.reps || s.weight || s.duration)
         .map((s, i) => ({
           exerciseName: ex.name.trim(),
@@ -139,8 +159,9 @@ function WorkoutEditForm({
           reps: s.reps ? Number(s.reps) : null,
           weight: s.weight ? Number(s.weight) : null,
           duration: s.duration ? Number(s.duration) : null,
-        })),
-    );
+          notes: i === 0 && ex.exNotes ? ex.exNotes : null,
+        }));
+    });
 
     try {
       await update.mutateAsync({
@@ -149,6 +170,7 @@ function WorkoutEditForm({
         date,
         dayType,
         duration: duration ? Number(duration) : null,
+        notes: notes || null,
         sets,
       });
       onSave();
@@ -159,7 +181,6 @@ function WorkoutEditForm({
 
   return (
     <div className="border-t border-white/5 px-5 py-4 space-y-4">
-      {/* Header fields */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <div className="sm:col-span-2">
           <Input
@@ -187,14 +208,21 @@ function WorkoutEditForm({
         </div>
       </div>
 
-      {/* Exercises */}
+      <textarea
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        placeholder="Session notes (how did it feel?)"
+        rows={2}
+        className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-muted-foreground/40 focus-visible:border-emerald-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/20"
+      />
+
       <div className="space-y-3">
         {loggedExercises.map((ex, exIdx) => (
           <div key={exIdx} className="rounded-2xl border border-white/5 bg-white/[0.02] p-4">
             <div className="mb-3 flex items-center gap-2">
               <Input
                 value={ex.name}
-                onChange={(e) => updateExerciseName(exIdx, e.target.value)}
+                onChange={(e) => updateExercise(exIdx, { name: e.target.value })}
                 placeholder="Exercise name"
                 list={`edit-ex-list-${exIdx}`}
                 className="!h-9 flex-1 font-medium"
@@ -204,6 +232,17 @@ function WorkoutEditForm({
                   <option key={e.id} value={e.name} />
                 ))}
               </datalist>
+              <button
+                onClick={() => updateExercise(exIdx, { exType: ex.exType === "strength" ? "cardio" : "strength" })}
+                className={cn(
+                  "shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                  ex.exType === "cardio"
+                    ? "bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30"
+                    : "text-muted-foreground ring-1 ring-white/10 hover:bg-white/5 hover:text-white",
+                )}
+              >
+                {ex.exType === "cardio" ? "Cardio" : "Strength"}
+              </button>
               {loggedExercises.length > 1 && (
                 <button
                   onClick={() => removeExercise(exIdx)}
@@ -213,53 +252,74 @@ function WorkoutEditForm({
                 </button>
               )}
             </div>
-            <div className="space-y-1.5">
-              {ex.sets.map((s, sIdx) => (
-                <div key={sIdx} className="flex items-center gap-2 text-sm">
-                  <div className="w-12 shrink-0 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-                    Set {sIdx + 1}
-                  </div>
-                  <Input
-                    type="number"
-                    value={s.reps}
-                    onChange={(e) => updateSet(exIdx, sIdx, { reps: e.target.value })}
-                    placeholder="reps"
-                    className="!h-9 w-20"
-                  />
-                  <span className="text-xs text-muted-foreground">×</span>
-                  <Input
-                    type="number"
-                    step="0.5"
-                    value={s.weight}
-                    onChange={(e) => updateSet(exIdx, sIdx, { weight: e.target.value })}
-                    placeholder="kg"
-                    className="!h-9 w-24"
-                  />
-                  <Input
-                    type="number"
-                    value={s.duration}
-                    onChange={(e) => updateSet(exIdx, sIdx, { duration: e.target.value })}
-                    placeholder="min"
-                    className="!h-9 w-20"
-                  />
-                  {ex.sets.length > 1 && (
-                    <button
-                      onClick={() => removeSet(exIdx, sIdx)}
-                      className="ml-auto rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-300"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  )}
+
+            {ex.exType === "cardio" ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  value={ex.sets[0]?.duration ?? ""}
+                  onChange={(e) => updateSet(exIdx, 0, { duration: e.target.value })}
+                  placeholder="duration"
+                  className="!h-9 w-24"
+                />
+                <span className="text-xs text-muted-foreground">min</span>
+                <Input
+                  value={ex.exNotes}
+                  onChange={(e) => updateExercise(exIdx, { exNotes: e.target.value })}
+                  placeholder="notes (e.g. incline: 12, speed: 5.0)"
+                  className="!h-9 flex-1 text-xs"
+                />
+              </div>
+            ) : (
+              <>
+                <div className="space-y-1.5">
+                  {ex.sets.map((s, sIdx) => (
+                    <div key={sIdx} className="flex items-center gap-2 text-sm">
+                      <div className="w-12 shrink-0 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                        Set {sIdx + 1}
+                      </div>
+                      <Input
+                        type="number"
+                        value={s.reps}
+                        onChange={(e) => updateSet(exIdx, sIdx, { reps: e.target.value })}
+                        placeholder="reps"
+                        className="!h-9 w-20"
+                      />
+                      <span className="text-xs text-muted-foreground">×</span>
+                      <Input
+                        type="number"
+                        step="0.5"
+                        value={s.weight}
+                        onChange={(e) => updateSet(exIdx, sIdx, { weight: e.target.value })}
+                        placeholder="kg"
+                        className="!h-9 w-24"
+                      />
+                      {ex.sets.length > 1 && (
+                        <button
+                          onClick={() => removeSet(exIdx, sIdx)}
+                          className="ml-auto rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-300"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => addSet(exIdx)}
+                    className="mt-1 flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-emerald-400"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add set
+                  </button>
                 </div>
-              ))}
-              <button
-                onClick={() => addSet(exIdx)}
-                className="mt-1 flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-emerald-400"
-              >
-                <Plus className="h-3 w-3" />
-                Add set
-              </button>
-            </div>
+                <Input
+                  value={ex.exNotes}
+                  onChange={(e) => updateExercise(exIdx, { exNotes: e.target.value })}
+                  placeholder="Exercise notes..."
+                  className="!h-8 mt-2 text-xs"
+                />
+              </>
+            )}
           </div>
         ))}
         <button
@@ -377,24 +437,31 @@ function WorkoutRow({ workout }: { workout: Workout }) {
                 </p>
               )}
 
-              {grouped.map((g, i) => (
-                <div key={i}>
-                  <div className="mb-1.5 text-sm font-medium text-white">{g.name}</div>
-                  <div className="space-y-1">
-                    {g.sets.map((s, sIdx) => (
-                      <div key={sIdx} className="flex items-center gap-3 text-xs text-muted-foreground">
-                        <span className="w-10 shrink-0 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50">
-                          Set {s.setNumber}
-                        </span>
-                        <span className="font-mono text-white/80">{formatSet(s)}</span>
-                        {s.notes && s.reps != null && (
-                          <span className="text-muted-foreground/60 truncate">{s.notes}</span>
-                        )}
-                      </div>
-                    ))}
+              {grouped.map((g, i) => {
+                const isCardio = g.sets.every((s) => s.reps == null && s.weight == null);
+                const exerciseNote = !isCardio ? g.sets[0]?.notes : null;
+                return (
+                  <div key={i}>
+                    <div className="mb-1.5 text-sm font-medium text-white">{g.name}</div>
+                    {exerciseNote && (
+                      <p className="mb-1.5 text-xs text-muted-foreground/60 italic pl-1">{exerciseNote}</p>
+                    )}
+                    <div className="space-y-1">
+                      {g.sets.map((s, sIdx) => (
+                        <div key={sIdx} className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <span className="w-10 shrink-0 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/50">
+                            {isCardio ? "Cardio" : `Set ${s.setNumber}`}
+                          </span>
+                          <span className="font-mono text-white/80">{formatSet(s)}</span>
+                          {isCardio && s.notes && (
+                            <span className="text-muted-foreground/60 truncate">{s.notes}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               <div className="flex justify-end gap-2 pt-1">
                 <button
